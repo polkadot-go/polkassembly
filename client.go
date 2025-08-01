@@ -32,8 +32,10 @@ type Config struct {
 
 func NewClient(cfg Config) *Client {
 	if cfg.BaseURL == "" {
+		// Use the correct API v2 base URL
 		cfg.BaseURL = fmt.Sprintf("https://%s.polkassembly.io/api/v2", cfg.Network)
 	}
+
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second
 	}
@@ -67,6 +69,7 @@ func NewClient(cfg Config) *Client {
 func (c *Client) SetAuthToken(token string) {
 	c.token = token
 	c.client.SetHeader("Authorization", "Bearer "+token)
+
 	if c.tokenStorage != nil {
 		c.tokenStorage.SaveToken(token)
 	}
@@ -78,6 +81,11 @@ func (c *Client) SetNetwork(network string) {
 }
 
 func (c *Client) parseResponse(resp *resty.Response, v interface{}) error {
+	// Debug logging
+	if resp.StatusCode() >= 400 {
+		fmt.Printf("Error response: %d - %s\n", resp.StatusCode(), string(resp.Body()))
+	}
+
 	if resp.IsError() {
 		var apiErr APIError
 		if err := json.Unmarshal(resp.Body(), &apiErr); err != nil {
@@ -87,10 +95,21 @@ func (c *Client) parseResponse(resp *resty.Response, v interface{}) error {
 	}
 
 	if v != nil && len(resp.Body()) > 0 {
+		// Debug: log response for empty results
+		var temp map[string]interface{}
+		if err := json.Unmarshal(resp.Body(), &temp); err == nil {
+			if posts, ok := temp["posts"]; ok {
+				if postsArr, ok := posts.([]interface{}); ok && len(postsArr) == 0 {
+					fmt.Printf("Empty posts response from %s\n", resp.Request.URL)
+				}
+			}
+		}
+
 		if err := json.Unmarshal(resp.Body(), v); err != nil {
 			return fmt.Errorf("failed to parse response: %w", err)
 		}
 	}
+
 	return nil
 }
 

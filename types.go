@@ -89,32 +89,108 @@ type PostListingParams struct {
 }
 
 type PostListingResponse struct {
-	Posts      []Post `json:"posts"`
-	Count      int    `json:"count"`
-	TotalCount int    `json:"totalCount"`
+	Posts      []Post `json:"posts"`      // For backward compatibility
+	Items      []Post `json:"items"`      // Actual API field
+	Count      int    `json:"count"`      // For backward compatibility
+	TotalCount int    `json:"totalCount"` // Actual API field
 }
 
 type Post struct {
-	PostID           int       `json:"post_id"`
-	Title            string    `json:"title"`
-	Content          string    `json:"content"`
-	Username         string    `json:"username"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	PostType         string    `json:"post_type"`
-	ProposalType     string    `json:"proposalType"`
-	Status           string    `json:"status"`
-	ProposerAddress  string    `json:"proposer"`
-	CommentsCount    int       `json:"comments_count"`
-	ReactionsCount   int       `json:"reactions_count"`
-	ViewsCount       int       `json:"views_count"`
-	Network          string    `json:"network"`
-	TrackNumber      int       `json:"track_number"`
-	Hash             string    `json:"hash"`
-	Method           string    `json:"method"`
-	MotionProposalId int       `json:"motion_proposal_id,omitempty"`
-	BountyId         int       `json:"bounty_id,omitempty"`
-	TipHash          string    `json:"tip_hash,omitempty"`
+	ID               string       `json:"id"`
+	PostID           int          `json:"post_id,omitempty"` // Legacy field
+	Index            int          `json:"index"`             // Actual field
+	Title            string       `json:"title"`
+	Content          string       `json:"content"`
+	Username         string       `json:"username,omitempty"`
+	CreatedAt        time.Time    `json:"createdAt"`
+	UpdatedAt        time.Time    `json:"updatedAt"`
+	PostType         string       `json:"post_type,omitempty"` // Legacy field
+	ProposalType     string       `json:"proposalType"`        // Actual field
+	Status           string       `json:"status,omitempty"`
+	ProposerAddress  string       `json:"proposer,omitempty"`
+	CommentsCount    int          `json:"comments_count,omitempty"`
+	ReactionsCount   int          `json:"reactions_count,omitempty"`
+	ViewsCount       int          `json:"views_count,omitempty"`
+	Network          string       `json:"network"`
+	TrackNumber      int          `json:"track_number,omitempty"`
+	Hash             string       `json:"hash,omitempty"`
+	Method           string       `json:"method,omitempty"`
+	MotionProposalId int          `json:"motion_proposal_id,omitempty"`
+	BountyId         int          `json:"bounty_id,omitempty"`
+	TipHash          string       `json:"tip_hash,omitempty"`
+	DataSource       string       `json:"dataSource"`
+	AllowedCommentor string       `json:"allowedCommentor"`
+	IsDeleted        bool         `json:"isDeleted"`
+	IsDefaultContent bool         `json:"isDefaultContent"`
+	Tags             []string     `json:"tags"`
+	Metrics          PostMetrics  `json:"metrics"`
+	OnChainInfo      *OnChainInfo `json:"onChainInfo,omitempty"`
+	PublicUser       *PublicUser  `json:"publicUser,omitempty"`
+}
+
+type PostMetrics struct {
+	Reactions struct {
+		Like    int `json:"like"`
+		Dislike int `json:"dislike"`
+	} `json:"reactions"`
+	Comments int `json:"comments"`
+}
+
+type OnChainInfo struct {
+	CreatedAt            time.Time     `json:"createdAt"`
+	Description          string        `json:"description"`
+	Index                int           `json:"index"`
+	Origin               string        `json:"origin"`
+	Proposer             string        `json:"proposer"`
+	Status               string        `json:"status"`
+	Type                 string        `json:"type"`
+	Hash                 string        `json:"hash"`
+	VoteMetrics          VoteMetrics   `json:"voteMetrics"`
+	DecisionPeriodEndsAt time.Time     `json:"decisionPeriodEndsAt,omitempty"`
+	PreparePeriodEndsAt  time.Time     `json:"preparePeriodEndsAt,omitempty"`
+	Beneficiaries        []Beneficiary `json:"beneficiaries,omitempty"`
+}
+
+type VoteMetrics struct {
+	Nay struct {
+		Count int    `json:"count"`
+		Value string `json:"value"`
+	} `json:"nay"`
+	Aye struct {
+		Count int    `json:"count"`
+		Value string `json:"value"`
+	} `json:"aye"`
+	Support struct {
+		Value string `json:"value"`
+	} `json:"support"`
+	BareAyes struct {
+		Value string `json:"value"`
+	} `json:"bareAyes"`
+}
+
+type Beneficiary struct {
+	Address string `json:"address"`
+	Amount  string `json:"amount"`
+	AssetID string `json:"assetId"`
+}
+
+type PublicUser struct {
+	ID             int            `json:"id"`
+	Username       string         `json:"username"`
+	ProfileScore   int            `json:"profileScore"`
+	Rank           int            `json:"rank"`
+	Addresses      []string       `json:"addresses"`
+	ProfileDetails ProfileDetails `json:"profileDetails"`
+}
+
+type ProfileDetails struct {
+	AchievementBadges []interface{} `json:"achievementBadges"`
+	Badges            []interface{} `json:"badges"`
+	Bio               string        `json:"bio"`
+	Image             string        `json:"image"`
+	Title             string        `json:"title"`
+	CoverImage        string        `json:"coverImage"`
+	PublicSocialLinks []interface{} `json:"publicSocialLinks"`
 }
 
 type PostOnchainData struct {
