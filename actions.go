@@ -38,9 +38,9 @@ func (c *Client) UpdateComment(proposalType string, postID int, commentID string
 		return nil, err
 	}
 
-	// Check if response is successful but empty
-	if r.StatusCode() == 200 && len(r.Body()) == 0 {
-		// Return the original comment with updated content
+	// Handle 204 No Content response
+	if r.StatusCode() == 204 || (r.StatusCode() >= 200 && r.StatusCode() < 300 && len(r.Body()) == 0) {
+		// Return success with the updated content
 		resp.ID = commentID
 		resp.Content = content
 		return &resp, nil

@@ -381,6 +381,17 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 			t.Logf("Subscribe failed: %v", err)
 		} else {
 			t.Log("Subscribed to proposal")
+
+			// Wait a moment for subscription to propagate
+			time.Sleep(2 * time.Second)
+
+			// Check subscription
+			status, err := client.IsSubscribed("ReferendumV2", postID)
+			if err != nil {
+				t.Logf("IsSubscribed check failed: %v", err)
+			} else if status != nil {
+				t.Logf("Subscription status after subscribe: %v", status.Subscribed)
+			}
 		}
 
 		// Check subscription
