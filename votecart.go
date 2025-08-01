@@ -5,7 +5,7 @@ import "fmt"
 func (c *Client) GetCartItems() ([]CartItem, error) {
 	var resp []CartItem
 	r, err := c.client.R().
-		Get("/cart")
+		Get("/auth/query/cartItems")
 	if err != nil {
 		return nil, err
 	}
@@ -19,7 +19,7 @@ func (c *Client) AddCartItem(req AddCartItemRequest) (*CartItem, error) {
 	var resp CartItem
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/cart")
+		Post("/auth/actions/addCartItem")
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (c *Client) UpdateCartItem(itemID int, req UpdateCartItemRequest) (*CartIte
 	var resp CartItem
 	r, err := c.client.R().
 		SetBody(req).
-		Patch(fmt.Sprintf("/cart/%d", itemID))
+		Post(fmt.Sprintf("/auth/actions/updateCartItem?itemId=%d", itemID))
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (c *Client) UpdateCartItem(itemID int, req UpdateCartItemRequest) (*CartIte
 
 func (c *Client) DeleteCartItem(itemID int) error {
 	r, err := c.client.R().
-		Delete(fmt.Sprintf("/cart/%d", itemID))
+		Post(fmt.Sprintf("/auth/actions/deleteCartItem?itemId=%d", itemID))
 	if err != nil {
 		return err
 	}

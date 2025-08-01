@@ -27,8 +27,8 @@ func main() {
     
     // Get posts
     posts, err := client.GetPosts(polkassembly.PostListingParams{
-        Page:  1,
-        Limit: 10,
+        Page:         1,
+        ListingLimit: 10,
     })
     if err != nil {
         log.Fatal(err)
@@ -148,7 +148,7 @@ client := polkassembly.NewClient(polkassembly.Config{
 | `GetUserFollowing` | Get user following | `userID, page, limit int` | `*UserListingResponse` |
 | `GetUserFollowers` | Get user followers | `userID, page, limit int` | `*UserListingResponse` |
 | `GetUserActivity` | Get user activity | `userID, page, limit int` | `*UserActivity` |
-| `EditUserDetails` | Edit user details | `userID int, EditUserDetailsRequest` | `*User` |
+| `EditUserDetails` | Edit user details | `EditUserDetailsRequest` | `*User` |
 
 ### Preimages
 
@@ -209,3 +209,7 @@ if err != nil {
     }
 }
 ```
+
+## License
+
+MIT License

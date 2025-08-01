@@ -5,7 +5,7 @@ import "fmt"
 func (c *Client) GetPreimageForPost(postID int) (*Preimage, error) {
 	var resp Preimage
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/posts/%d/preimage", postID))
+		Get(fmt.Sprintf("/posts/preimage?postId=%d", postID))
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (c *Client) GetPreimages(params PreimageListingParams) (*PreimageListingRes
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get("/preimages")
+		Get("/preimages/list")
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (c *Client) GetPreimages(params PreimageListingParams) (*PreimageListingRes
 func (c *Client) GetPreimageByHash(hash string) (*Preimage, error) {
 	var resp Preimage
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/preimages/%s", hash))
+		Get(fmt.Sprintf("/preimages/hash?hash=%s", hash))
 	if err != nil {
 		return nil, err
 	}
