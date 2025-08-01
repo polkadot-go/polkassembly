@@ -17,7 +17,7 @@ func (c *Client) GetUserByID(userID int) (*User, error) {
 
 func (c *Client) GetUserFollowing(userID int, page, limit int) (*UserListingResponse, error) {
 	var resp UserListingResponse
-	queryParams := make(map[string]string)
+	queryParams := map[string]string{}
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
@@ -39,7 +39,7 @@ func (c *Client) GetUserFollowing(userID int, page, limit int) (*UserListingResp
 
 func (c *Client) GetUserFollowers(userID int, page, limit int) (*UserListingResponse, error) {
 	var resp UserListingResponse
-	queryParams := make(map[string]string)
+	queryParams := map[string]string{}
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
@@ -61,7 +61,7 @@ func (c *Client) GetUserFollowers(userID int, page, limit int) (*UserListingResp
 
 func (c *Client) GetUserActivity(userID int, page, limit int) (*UserActivity, error) {
 	var resp UserActivity
-	queryParams := make(map[string]string)
+	queryParams := map[string]string{}
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
@@ -109,7 +109,7 @@ func (c *Client) GetUserByAddress(address string) (*User, error) {
 
 func (c *Client) GetUsers(params UserListingParams) (*UserListingResponse, error) {
 	var resp UserListingResponse
-	queryParams := make(map[string]string)
+	queryParams := map[string]string{}
 	if params.Page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", params.Page)
 	}
