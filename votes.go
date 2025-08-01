@@ -32,9 +32,8 @@ func (c *Client) GetVotes(params VoteListingParams) (*VoteListingResponse, error
 
 func (c *Client) GetVotesByAddress(address string, page, limit int) (*VoteListingResponse, error) {
 	var resp VoteListingResponse
-	queryParams := make(map[string]string{
-		"voterAddress": address,
-	})
+	queryParams := make(map[string]string)
+	queryParams["voterAddress"] = address
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
@@ -56,9 +55,8 @@ func (c *Client) GetVotesByAddress(address string, page, limit int) (*VoteListin
 
 func (c *Client) GetVotesByUserID(userID int, page, limit int) (*VoteListingResponse, error) {
 	var resp VoteListingResponse
-	queryParams := make(map[string]string{
-		"userId": fmt.Sprintf("%d", userID),
-	})
+	queryParams := make(map[string]string)
+	queryParams["userId"] = fmt.Sprintf("%d", userID)
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
