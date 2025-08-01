@@ -316,12 +316,16 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 		if err != nil {
 			t.Logf("UpdateComment failed: %v", err)
 		} else {
-			// Verify the update
-			updatedContent, ok := updated.Content.(string)
-			if !ok || !strings.Contains(updatedContent, "Updated:") {
-				t.Errorf("Comment update verification failed: content = %v", updated.Content)
+			// API returns 204 No Content on success
+			if updated.Content != nil {
+				updatedContent, ok := updated.Content.(string)
+				if !ok || !strings.Contains(updatedContent, "Updated:") {
+					t.Errorf("Comment update verification failed: content = %v", updated.Content)
+				} else {
+					t.Logf("Updated comment verified: %s", updatedContent)
+				}
 			} else {
-				t.Logf("Updated comment verified: %s", updatedContent)
+				t.Log("Comment updated successfully (204 No Content)")
 			}
 		}
 	})
