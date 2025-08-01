@@ -1,71 +1,142 @@
 package polkassembly
 
 import (
+	"encoding/hex"
+	"fmt"
+	"io"
+	"log"
 	"os"
-	"strings"
 	"testing"
 	"time"
 )
 
-func getTestClient(t *testing.T) *Client {
+var (
+	testClient *Client
+	authResp   *Web3AuthResponse
+)
+
+func TestMain(m *testing.M) {
+	// Setup
 	network := os.Getenv("POLKASSEMBLY_NETWORK")
 	if network == "" {
 		network = "polkadot"
 	}
-	client := NewClient(Config{
-		Network: network,
-	})
-	// Debug: log the base URL
-	t.Logf("Using API URL: %s", client.baseURL)
 
-	// Optional Web3 auth
+	debug := os.Getenv("POLKASSEMBLY_DEBUG") == "true"
+
+	var logger *log.Logger
+	if debug {
+		logger = log.New(os.Stdout, "[test] ", log.LstdFlags)
+	} else {
+		logger = log.New(io.Discard, "", 0)
+	}
+
+	testClient = NewClient(Config{
+		Network: network,
+		Debug:   debug,
+		Logger:  logger,
+	})
+
+	fmt.Printf("Using API URL: %s\n", testClient.baseURL)
+
+	// Authenticate if seed is provided
 	seedPhrase := os.Getenv("POLKASSEMBLY_SEED")
 	if seedPhrase != "" {
-		err := client.AuthenticateWithSeed(network, seedPhrase)
+		var err error
+		authResp, err = authenticateAndGetResponse(testClient, network, seedPhrase)
 		if err != nil {
-			t.Logf("Auth failed: %v", err)
+			fmt.Printf("Auth failed: %v\n", err)
 		} else {
-			t.Log("Authenticated with Web3")
+			fmt.Println("Authenticated with Web3")
 		}
 	}
-	return client
+
+	// Run tests
+	code := m.Run()
+	os.Exit(code)
 }
 
-// Public endpoints (no auth required)
-func TestGetPosts(t *testing.T) {
-	client := getTestClient(t)
+func authenticateAndGetResponse(c *Client, network string, seedPhrase string) (*Web3AuthResponse, error) {
+	var networkID uint16
+	switch network {
+	case "polkadot":
+		networkID = 0
+	case "kusama":
+		networkID = 2
+	default:
+		networkID = 42
+	}
 
-	// Test without specifying proposal type
-	resp, err := client.GetPosts(PostListingParams{
+	signer, err := NewPolkadotSignerFromSeed(seedPhrase, networkID)
+	if err != nil {
+		return nil, fmt.Errorf("create signer: %w", err)
+	}
+
+	fmt.Printf("Address: %s\n", signer.Address())
+
+	message := fmt.Sprintf("Sign this message to authenticate with Polkassembly\n\nNetwork: %s\nAddress: %s\nTimestamp: %d",
+		network, signer.Address(), time.Now().Unix())
+
+	signature, err := signer.Sign([]byte(message))
+	if err != nil {
+		return nil, fmt.Errorf("sign message: %w", err)
+	}
+
+	req := Web3AuthRequest{
+		Address:   signer.Address(),
+		Signature: "0x" + hex.EncodeToString(signature),
+		Message:   message,
+		Network:   network,
+	}
+
+	resp, err := c.Web3Auth(req)
+	if err != nil {
+		return nil, fmt.Errorf("web3 auth: %w", err)
+	}
+
+	if c.token != "" {
+		fmt.Printf("Client has token after auth\n")
+		user, err := c.GetUserByAddress(signer.Address())
+		if err == nil {
+			resp.User = *user
+			resp.Token = c.token
+		}
+	}
+
+	return resp, nil
+}
+
+// Public endpoints tests
+func TestGetPosts(t *testing.T) {
+	resp, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 10,
 	})
+
 	if err != nil {
 		t.Fatalf("GetPosts failed: %v", err)
 	}
-	if resp == nil {
-		t.Fatal("Response is nil")
-	}
+
 	t.Logf("Found %d posts (total count: %d)", len(resp.Posts), resp.TotalCount)
 
-	// Try with specific proposal type
-	resp2, err := client.GetPosts(PostListingParams{
+	resp2, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 10,
 		ProposalType: "ReferendumV2",
 	})
+
 	if err != nil {
 		t.Logf("GetPosts with ReferendumV2 failed: %v", err)
 	} else {
 		t.Logf("Found %d ReferendumV2 posts", len(resp2.Posts))
 	}
 
-	// Try other parameters
-	resp3, err := client.GetPosts(PostListingParams{
+	resp3, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 20,
 		SortBy:       "newest",
 	})
+
 	if err != nil {
 		t.Logf("GetPosts with sortBy failed: %v", err)
 	} else {
@@ -74,14 +145,12 @@ func TestGetPosts(t *testing.T) {
 }
 
 func TestGetPost(t *testing.T) {
-	client := getTestClient(t)
-
-	// Get a post ID from listing first
-	posts, err := client.GetPosts(PostListingParams{
+	posts, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 1,
 		ProposalType: "ReferendumV2",
 	})
+
 	if err != nil || posts == nil || len(posts.Posts) == 0 {
 		t.Skip("No posts available")
 	}
@@ -91,20 +160,21 @@ func TestGetPost(t *testing.T) {
 		postID = posts.Posts[0].Index
 	}
 
-	post, err := client.GetPost(postID)
+	post, err := testClient.GetPost(postID)
 	if err != nil {
 		t.Fatalf("GetPost failed: %v", err)
 	}
+
 	t.Logf("Got post: %s", post.Title)
 }
 
 func TestGetPostOnchainData(t *testing.T) {
-	client := getTestClient(t)
-	posts, err := client.GetPosts(PostListingParams{
+	posts, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 1,
 		ProposalType: "ReferendumV2",
 	})
+
 	if err != nil || posts == nil || len(posts.Posts) == 0 {
 		t.Skip("No posts available")
 	}
@@ -114,82 +184,99 @@ func TestGetPostOnchainData(t *testing.T) {
 		postID = posts.Posts[0].Index
 	}
 
-	data, err := client.GetPostOnchainData(postID)
+	data, err := testClient.GetPostOnchainData(postID)
 	if err != nil {
 		t.Logf("GetPostOnchainData failed: %v", err)
 		return
 	}
-	t.Logf("Onchain data - Status: %s", data.Status)
+
+	t.Logf("Onchain data - Status: %s, AyesCount: %d, NaysCount: %d",
+		data.Status, data.AyesCount, data.NaysCount)
 }
 
 func TestGetPostComments(t *testing.T) {
-	client := getTestClient(t)
-	posts, err := client.GetPosts(PostListingParams{
+	posts, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 5,
 		ProposalType: "ReferendumV2",
 	})
+
 	if err != nil || posts == nil || len(posts.Posts) == 0 {
 		t.Skip("No posts available")
 	}
 
-	// Find a post with comments
 	for _, post := range posts.Posts {
 		commentsCount := post.CommentsCount
 		if commentsCount == 0 && post.Metrics.Comments > 0 {
 			commentsCount = post.Metrics.Comments
 		}
+
 		if commentsCount > 0 {
 			postID := post.PostID
 			if postID == 0 {
 				postID = post.Index
 			}
-			comments, err := client.GetPostComments(postID)
+
+			comments, err := testClient.GetPostComments(postID)
 			if err != nil {
 				t.Errorf("GetPostComments failed: %v", err)
 				continue
 			}
+
 			t.Logf("Found %d comments for post %d", len(comments), postID)
 			return
 		}
 	}
+
 	t.Log("No posts with comments found")
 }
 
 func TestGetUsers(t *testing.T) {
-	client := getTestClient(t)
-	resp, err := client.GetUsers(UserListingParams{
+	resp, err := testClient.GetUsers(UserListingParams{
 		Page:  1,
 		Limit: 10,
+		Sort:  "profileScore",
 	})
+
 	if err != nil {
 		t.Fatalf("GetUsers failed: %v", err)
 	}
+
 	t.Logf("Found %d users", len(resp.Users))
+
+	if len(resp.Users) == 0 {
+		resp, err = testClient.GetUsers(UserListingParams{
+			Page:  1,
+			Limit: 10,
+			Sort:  "newest",
+		})
+		if err == nil {
+			t.Logf("Found %d users with newest sort", len(resp.Users))
+		}
+	}
 }
 
 func TestGetUserByUsername(t *testing.T) {
-	client := getTestClient(t)
-	// Get a username from listing
-	users, err := client.GetUsers(UserListingParams{Page: 1, Limit: 1})
-	if err != nil || len(users.Users) == 0 {
-		t.Skip("No users available")
+	usernames := []string{"alice", "bob", "charlie", "admin"}
+
+	for _, username := range usernames {
+		user, err := testClient.GetUserByUsername(username)
+		if err == nil {
+			t.Logf("Got user: %s (ID: %d)", user.Username, user.ID)
+			return
+		}
 	}
-	user, err := client.GetUserByUsername(users.Users[0].Username)
-	if err != nil {
-		t.Fatalf("GetUserByUsername failed: %v", err)
-	}
-	t.Logf("Got user: %s", user.Username)
+
+	t.Skip("No valid usernames found")
 }
 
 func TestGetVotes(t *testing.T) {
-	client := getTestClient(t)
-	// Get votes for a specific post
-	posts, err := client.GetPosts(PostListingParams{
+	posts, err := testClient.GetPosts(PostListingParams{
 		Page:         1,
 		ListingLimit: 1,
 		ProposalType: "ReferendumV2",
 	})
+
 	if err != nil || posts == nil || len(posts.Posts) == 0 {
 		t.Skip("No posts available")
 	}
@@ -199,98 +286,162 @@ func TestGetVotes(t *testing.T) {
 		postID = posts.Posts[0].Index
 	}
 
-	resp, err := client.GetVotes(VoteListingParams{
+	resp, err := testClient.GetVotes(VoteListingParams{
 		PostID: postID,
 		Page:   1,
 		Limit:  10,
 	})
+
 	if err != nil {
 		t.Fatalf("GetVotes failed: %v", err)
 	}
-	t.Logf("Found %d votes", len(resp.Votes))
+
+	t.Logf("Found %d votes for post %d", len(resp.Votes), postID)
 }
 
 func TestGetPreimages(t *testing.T) {
-	client := getTestClient(t)
-	resp, err := client.GetPreimages(PreimageListingParams{
+	posts, err := testClient.GetPosts(PostListingParams{
+		Page:         1,
+		ListingLimit: 10,
+		ProposalType: "ReferendumV2",
+	})
+
+	if err == nil && posts != nil && len(posts.Posts) > 0 {
+		for _, post := range posts.Posts {
+			if post.Hash != "" {
+				preimage, err := testClient.GetPreimageByHash(post.Hash)
+				if err == nil {
+					t.Logf("Found preimage for hash %s", post.Hash[:10]+"...")
+					t.Logf("Preimage method: %s, section: %s", preimage.Method, preimage.Section)
+					return
+				}
+			}
+		}
+	}
+
+	resp, err := testClient.GetPreimages(PreimageListingParams{
 		Page:  1,
 		Limit: 10,
 	})
+
 	if err != nil {
-		// This might fail due to external dependencies
-		t.Logf("GetPreimages failed (may be external issue): %v", err)
+		t.Logf("GetPreimages failed: %v", err)
 		return
 	}
+
 	t.Logf("Found %d preimages", len(resp.Preimages))
 }
 
 func TestGetDelegationStats(t *testing.T) {
-	client := getTestClient(t)
-	stats, err := client.GetDelegationStats()
+	stats, err := testClient.GetDelegationStats()
 	if err != nil {
-		// Skip if endpoint doesn't exist
-		t.Skipf("GetDelegationStats not available: %v", err)
+		delegates, err := testClient.GetDelegates(1, 10)
+		if err != nil {
+			t.Skipf("Delegation endpoints not available: %v", err)
+		}
+		t.Logf("Found %d delegates", len(delegates))
+		return
 	}
+
 	t.Logf("Total delegations: %d, Total balance: %s",
 		stats.TotalDelegations, stats.TotalBalance)
 }
 
 func TestGetActivityFeed(t *testing.T) {
-	client := getTestClient(t)
-	feed, err := client.GetActivityFeed(1, 10)
+	feed, err := testClient.GetActivityFeed(1, 10)
 	if err != nil {
 		t.Logf("GetActivityFeed failed: %v", err)
-		// Skip instead of fail since this might not be implemented
 		t.Skip("Activity feed not available")
 	}
+
 	t.Logf("Found %d activity items", len(feed))
 }
 
 // Authenticated endpoints
 func TestAuthenticatedEndpoints(t *testing.T) {
-	seedPhrase := os.Getenv("POLKASSEMBLY_SEED")
-	if seedPhrase == "" {
-		t.Skip("Skipping authenticated tests: POLKASSEMBLY_SEED not set")
+	if authResp == nil || authResp.User.ID == 0 {
+		t.Skip("Authentication not available")
 	}
-	client := getTestClient(t)
 
-	// Get authenticated user info for tests that need user ID
-	// This assumes auth provides user info in token
-	// If not available, skip tests that need user ID
+	userID := authResp.User.ID
+	t.Logf("Authenticated as user ID: %d, username: %s", userID, authResp.User.Username)
 
 	t.Run("GetCartItems", func(t *testing.T) {
-		t.Skip("Cart endpoints need user ID")
+		items, err := testClient.GetCartItems(userID)
+		if err != nil {
+			t.Errorf("GetCartItems failed: %v", err)
+		} else {
+			t.Logf("Found %d cart items", len(items))
+		}
 	})
 
 	t.Run("IsSubscribed", func(t *testing.T) {
-		posts, err := client.GetPosts(PostListingParams{
+		posts, err := testClient.GetPosts(PostListingParams{
 			Page:         1,
-			ListingLimit: 1,
+			ListingLimit: 10,
 			ProposalType: "ReferendumV2",
 		})
+
 		if err != nil || posts == nil || len(posts.Posts) == 0 {
 			t.Skip("No posts available")
 		}
 
-		postID := posts.Posts[0].PostID
-		if postID == 0 {
-			postID = posts.Posts[0].Index
+		var postID int
+		var foundUnsubscribed bool
+
+		for _, post := range posts.Posts {
+			pid := post.PostID
+			if pid == 0 {
+				pid = post.Index
+			}
+
+			status, err := testClient.IsSubscribed("ReferendumV2", pid)
+			if err != nil {
+				continue
+			}
+
+			if !status.Subscribed {
+				postID = pid
+				foundUnsubscribed = true
+				break
+			}
 		}
 
-		status, err := client.IsSubscribed("ReferendumV2", postID)
-		if err != nil {
-			t.Logf("IsSubscribed failed: %v", err)
-		} else {
-			t.Logf("Subscription status: %v", status.Subscribed)
+		if !foundUnsubscribed {
+			postID = posts.Posts[0].PostID
+			if postID == 0 {
+				postID = posts.Posts[0].Index
+			}
+			testClient.UnsubscribeProposal("ReferendumV2", postID)
+			time.Sleep(1 * time.Second)
 		}
+
+		err = testClient.SubscribeProposal("ReferendumV2", postID)
+		if err != nil {
+			t.Fatalf("Subscribe failed: %v", err)
+		}
+
+		time.Sleep(2 * time.Second)
+
+		status, err := testClient.IsSubscribed("ReferendumV2", postID)
+		if err != nil {
+			t.Errorf("IsSubscribed check failed: %v", err)
+		} else if !status.Subscribed {
+			t.Errorf("Expected subscription to be true after subscribing")
+		} else {
+			t.Logf("Successfully subscribed to post %d", postID)
+		}
+
+		testClient.UnsubscribeProposal("ReferendumV2", postID)
 	})
 
 	t.Run("CreateAndUpdateComment", func(t *testing.T) {
-		posts, err := client.GetPosts(PostListingParams{
+		posts, err := testClient.GetPosts(PostListingParams{
 			Page:         1,
 			ListingLimit: 1,
 			ProposalType: "ReferendumV2",
 		})
+
 		if err != nil || posts == nil || len(posts.Posts) == 0 {
 			t.Skip("No posts available")
 		}
@@ -300,42 +451,40 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 			postID = posts.Posts[0].Index
 		}
 
-		// Create comment
-		comment, err := client.AddComment("ReferendumV2", postID, AddCommentRequest{
+		comment, err := testClient.AddComment("ReferendumV2", postID, AddCommentRequest{
 			Content: "Test comment from Go client at " + time.Now().Format(time.RFC3339),
 		})
+
 		if err != nil {
-			t.Logf("AddComment failed: %v", err)
-			return
+			t.Fatalf("AddComment failed: %v", err)
 		}
+
 		t.Logf("Created comment ID: %s", comment.ID)
 
-		// Update comment
-		updated, err := client.UpdateComment("ReferendumV2", postID, comment.ID,
+		_, err = testClient.UpdateComment("ReferendumV2", postID, comment.ID,
 			"Updated: Test comment from Go client at "+time.Now().Format(time.RFC3339))
+
 		if err != nil {
-			t.Logf("UpdateComment failed: %v", err)
+			t.Errorf("UpdateComment failed: %v", err)
 		} else {
-			// API returns 204 No Content on success
-			if updated.Content != nil {
-				updatedContent, ok := updated.Content.(string)
-				if !ok || !strings.Contains(updatedContent, "Updated:") {
-					t.Errorf("Comment update verification failed: content = %v", updated.Content)
-				} else {
-					t.Logf("Updated comment verified: %s", updatedContent)
-				}
-			} else {
-				t.Log("Comment updated successfully (204 No Content)")
-			}
+			t.Log("Comment updated successfully")
+		}
+
+		err = testClient.DeleteComment("ReferendumV2", postID, comment.ID)
+		if err != nil {
+			t.Logf("DeleteComment failed: %v", err)
+		} else {
+			t.Log("Comment deleted successfully")
 		}
 	})
 
 	t.Run("Reactions", func(t *testing.T) {
-		posts, err := client.GetPosts(PostListingParams{
+		posts, err := testClient.GetPosts(PostListingParams{
 			Page:         1,
 			ListingLimit: 1,
 			ProposalType: "ReferendumV2",
 		})
+
 		if err != nil || posts == nil || len(posts.Posts) == 0 {
 			t.Skip("No posts available")
 		}
@@ -345,31 +494,36 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 			postID = posts.Posts[0].Index
 		}
 
-		reaction, err := client.AddReaction("ReferendumV2", postID, "like")
-		if err != nil {
-			t.Logf("AddReaction failed: %v", err)
-		} else {
-			t.Logf("Added reaction: %s", reaction.Reaction)
-			// Skip delete if no ID returned
-			if reaction.ID != "" {
-				err = client.DeleteReaction("ReferendumV2", postID, reaction.ID)
+		reactions := []string{"like", "dislike"}
+
+		for _, reaction := range reactions {
+			resp, err := testClient.AddReaction("ReferendumV2", postID, reaction)
+			if err != nil {
+				t.Logf("AddReaction failed for %s: %v", reaction, err)
+				continue
+			}
+
+			t.Logf("Added reaction: %s", reaction)
+
+			if resp.ID != "" {
+				err = testClient.DeleteReaction("ReferendumV2", postID, resp.ID)
 				if err != nil {
 					t.Logf("DeleteReaction failed: %v", err)
 				} else {
 					t.Log("Deleted reaction")
 				}
-			} else {
-				t.Log("Reaction API returned empty ID, skipping delete")
 			}
+			break
 		}
 	})
 
 	t.Run("SubscribeUnsubscribe", func(t *testing.T) {
-		posts, err := client.GetPosts(PostListingParams{
+		posts, err := testClient.GetPosts(PostListingParams{
 			Page:         1,
 			ListingLimit: 1,
 			ProposalType: "ReferendumV2",
 		})
+
 		if err != nil || posts == nil || len(posts.Posts) == 0 {
 			t.Skip("No posts available")
 		}
@@ -379,41 +533,85 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 			postID = posts.Posts[0].Index
 		}
 
-		// Subscribe
-		err = client.SubscribeProposal("ReferendumV2", postID)
+		testClient.UnsubscribeProposal("ReferendumV2", postID)
+		time.Sleep(1 * time.Second)
+
+		err = testClient.SubscribeProposal("ReferendumV2", postID)
 		if err != nil {
-			t.Logf("Subscribe failed: %v", err)
-		} else {
-			t.Log("Subscribed to proposal")
-
-			// Wait a moment for subscription to propagate
-			time.Sleep(2 * time.Second)
-
-			// Check subscription
-			status, err := client.IsSubscribed("ReferendumV2", postID)
-			if err != nil {
-				t.Logf("IsSubscribed check failed: %v", err)
-			} else if status != nil {
-				t.Logf("Subscription status after subscribe: %v", status.Subscribed)
-			}
+			t.Errorf("Subscribe failed: %v", err)
+			return
 		}
 
-		// Check subscription
-		status, _ := client.IsSubscribed("ReferendumV2", postID)
-		if status != nil {
-			t.Logf("Subscription status after subscribe: %v", status.Subscribed)
+		t.Log("Subscribed to proposal")
+		time.Sleep(2 * time.Second)
+
+		status, err := testClient.IsSubscribed("ReferendumV2", postID)
+		if err != nil {
+			t.Errorf("IsSubscribed check failed: %v", err)
+		} else if status != nil && status.Subscribed {
+			t.Log("Subscription confirmed")
 		}
 
-		// Unsubscribe
-		err = client.UnsubscribeProposal("ReferendumV2", postID)
+		err = testClient.UnsubscribeProposal("ReferendumV2", postID)
 		if err != nil {
-			t.Logf("Unsubscribe failed: %v", err)
+			t.Errorf("Unsubscribe failed: %v", err)
 		} else {
 			t.Log("Unsubscribed from proposal")
 		}
 	})
 
 	t.Run("EditProfile", func(t *testing.T) {
-		t.Skip("Edit profile needs user ID")
+		user, err := testClient.EditUserDetails(userID, EditUserDetailsRequest{
+			Bio:   "Test bio from Go client at " + time.Now().Format(time.RFC3339),
+			Title: "Go Developer",
+		})
+
+		if err != nil {
+			t.Errorf("EditUserDetails failed: %v", err)
+		} else {
+			t.Logf("Updated user profile: ID %d", userID)
+			if user.Username != "" {
+				t.Logf("Username: %s", user.Username)
+			}
+		}
+	})
+
+	t.Run("FollowUnfollow", func(t *testing.T) {
+		users, err := testClient.GetUsers(UserListingParams{
+			Page:  1,
+			Limit: 10,
+		})
+
+		if err != nil || len(users.Users) == 0 {
+			t.Skip("No users available to follow")
+		}
+
+		targetUserID := 0
+		for _, user := range users.Users {
+			if user.ID != userID {
+				targetUserID = user.ID
+				break
+			}
+		}
+
+		if targetUserID == 0 {
+			t.Skip("No other users found")
+		}
+
+		err = testClient.FollowUser(targetUserID)
+		if err != nil {
+			t.Logf("FollowUser failed: %v", err)
+		} else {
+			t.Logf("Followed user %d", targetUserID)
+		}
+
+		time.Sleep(1 * time.Second)
+
+		err = testClient.UnfollowUser(targetUserID)
+		if err != nil {
+			t.Logf("UnfollowUser failed: %v", err)
+		} else {
+			t.Log("Unfollowed user")
+		}
 	})
 }

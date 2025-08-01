@@ -1,39 +1,51 @@
 package polkassembly
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func (c *Client) AddComment(proposalType string, postID int, req AddCommentRequest) (*Comment, error) {
 	var resp Comment
 	endpoint := fmt.Sprintf("/%s/%d/comments", proposalType, postID)
+
 	body := map[string]interface{}{
 		"content": req.Content,
 	}
+
 	if req.ParentID != "" {
 		body["parentCommentId"] = req.ParentID
 	}
+
 	if req.Address != "" {
 		body["address"] = req.Address
 	}
+
 	r, err := c.client.R().
 		SetBody(body).
 		Post(endpoint)
+
 	if err != nil {
 		return nil, err
 	}
+
 	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
 	}
+
 	return &resp, nil
 }
 
 func (c *Client) UpdateComment(proposalType string, postID int, commentID string, content interface{}) (*Comment, error) {
 	var resp Comment
 	endpoint := fmt.Sprintf("/%s/%d/comments/%s", proposalType, postID, commentID)
+
 	r, err := c.client.R().
 		SetBody(map[string]interface{}{
 			"content": content,
 		}).
 		Patch(endpoint)
+
 	if err != nil {
 		return nil, err
 	}
@@ -49,86 +61,135 @@ func (c *Client) UpdateComment(proposalType string, postID int, commentID string
 	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
 	}
+
 	return &resp, nil
 }
 
 func (c *Client) AddReaction(proposalType string, postID int, reaction string) (*Reaction, error) {
 	var resp Reaction
 	endpoint := fmt.Sprintf("/%s/%d/reactions", proposalType, postID)
+
 	r, err := c.client.R().
 		SetBody(map[string]interface{}{
 			"reaction": reaction,
 		}).
 		Post(endpoint)
+
 	if err != nil {
 		return nil, err
 	}
 
-	// API might return 200 with empty response
-	if r.StatusCode() == 200 && len(r.Body()) == 0 {
-		// Create a placeholder response
+	// Check if response contains reaction data
+	if r.StatusCode() >= 200 && r.StatusCode() < 300 {
+		// Try to parse response
+		if len(r.Body()) > 0 {
+			if err := c.parseResponse(r, &resp); err == nil && resp.ID != "" {
+				return &resp, nil
+			}
+		}
+
+		// If no ID in response, generate one based on user reaction
+		// The API might not return the reaction ID immediately
 		resp.Reaction = reaction
+		resp.ID = fmt.Sprintf("temp_%d_%s", postID, reaction)
 		return &resp, nil
 	}
 
 	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
 	}
+
 	return &resp, nil
 }
 
 func (c *Client) DeleteComment(proposalType string, postID int, commentID string) error {
 	endpoint := fmt.Sprintf("/%s/%d/comments/%s", proposalType, postID, commentID)
+
 	r, err := c.client.R().
 		Delete(endpoint)
+
 	if err != nil {
 		return err
 	}
+
 	return c.parseResponse(r, nil)
 }
 
 func (c *Client) DeleteReaction(proposalType string, postID int, reactionID string) error {
+	// If reactionID starts with "temp_", it means we need to use the reaction itself
+	if len(reactionID) > 5 && reactionID[:5] == "temp_" {
+		// Extract reaction from temp ID
+		parts := strings.Split(reactionID, "_")
+		if len(parts) >= 3 {
+			reaction := parts[2]
+			endpoint := fmt.Sprintf("/%s/%d/reactions", proposalType, postID)
+
+			r, err := c.client.R().
+				SetBody(map[string]interface{}{
+					"reaction": reaction,
+				}).
+				Delete(endpoint)
+
+			if err != nil {
+				return err
+			}
+
+			return c.parseResponse(r, nil)
+		}
+	}
+
 	endpoint := fmt.Sprintf("/%s/%d/reactions/%s", proposalType, postID, reactionID)
+
 	r, err := c.client.R().
 		Delete(endpoint)
+
 	if err != nil {
 		return err
 	}
+
 	return c.parseResponse(r, nil)
 }
 
 func (c *Client) FollowUser(userID int) error {
 	r, err := c.client.R().
 		Post(fmt.Sprintf("/users/id/%d/followers", userID))
+
 	if err != nil {
 		return err
 	}
+
 	return c.parseResponse(r, nil)
 }
 
 func (c *Client) UnfollowUser(userID int) error {
 	r, err := c.client.R().
 		Delete(fmt.Sprintf("/users/id/%d/followers", userID))
+
 	if err != nil {
 		return err
 	}
+
 	return c.parseResponse(r, nil)
 }
 
 func (c *Client) SubscribeProposal(proposalType string, postID int) error {
 	r, err := c.client.R().
 		Post(fmt.Sprintf("/%s/%d/subscription", proposalType, postID))
+
 	if err != nil {
 		return err
 	}
+
 	return c.parseResponse(r, nil)
 }
 
 func (c *Client) UnsubscribeProposal(proposalType string, postID int) error {
 	r, err := c.client.R().
 		Delete(fmt.Sprintf("/%s/%d/subscription", proposalType, postID))
+
 	if err != nil {
 		return err
 	}
+
 	return c.parseResponse(r, nil)
 }

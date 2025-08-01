@@ -3,6 +3,10 @@ package polkassembly
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+	"net/http/cookiejar"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -20,6 +24,8 @@ type Client struct {
 	token        string
 	network      string
 	tokenStorage TokenStorage
+	debug        bool
+	logger       *log.Logger
 }
 
 type Config struct {
@@ -28,11 +34,12 @@ type Config struct {
 	Token        string
 	Timeout      time.Duration
 	TokenStorage TokenStorage
+	Debug        bool
+	Logger       *log.Logger
 }
 
 func NewClient(cfg Config) *Client {
 	if cfg.BaseURL == "" {
-		// Use the correct API v2 base URL
 		cfg.BaseURL = fmt.Sprintf("https://%s.polkassembly.io/api/v2", cfg.Network)
 	}
 
@@ -40,12 +47,24 @@ func NewClient(cfg Config) *Client {
 		cfg.Timeout = 90 * time.Second
 	}
 
-	client := resty.New().
+	if cfg.Logger == nil {
+		cfg.Logger = log.New(log.Writer(), "[polkassembly] ", log.LstdFlags)
+	}
+
+	// Create HTTP client with cookie jar
+	jar, _ := cookiejar.New(nil)
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+
+	client := resty.NewWithClient(httpClient).
 		SetBaseURL(cfg.BaseURL).
 		SetTimeout(cfg.Timeout).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
 		SetHeader("x-network", cfg.Network)
+
+	client.SetCookieJar(nil)
 
 	c := &Client{
 		client:       client,
@@ -53,6 +72,8 @@ func NewClient(cfg Config) *Client {
 		network:      cfg.Network,
 		token:        cfg.Token,
 		tokenStorage: cfg.TokenStorage,
+		debug:        cfg.Debug,
+		logger:       cfg.Logger,
 	}
 
 	if cfg.Token != "" {
@@ -66,10 +87,19 @@ func NewClient(cfg Config) *Client {
 	return c
 }
 
+func (c *Client) logDebug(format string, v ...interface{}) {
+	if c.debug {
+		c.logger.Printf(format, v...)
+	}
+}
+
 func (c *Client) SetAuthToken(token string) {
 	c.token = token
-	c.client.SetHeader("Authorization", "Bearer "+token)
-
+	if strings.Count(token, ".") >= 2 {
+		c.client.SetHeader("Authorization", "Bearer "+token)
+	} else {
+		c.client.SetHeader("Authorization", token)
+	}
 	if c.tokenStorage != nil {
 		c.tokenStorage.SaveToken(token)
 	}
@@ -81,9 +111,8 @@ func (c *Client) SetNetwork(network string) {
 }
 
 func (c *Client) parseResponse(resp *resty.Response, v interface{}) error {
-	// Debug logging
 	if resp.StatusCode() >= 400 {
-		fmt.Printf("Error response: %d - %s\n", resp.StatusCode(), string(resp.Body()))
+		c.logDebug("Error response: %d - %s", resp.StatusCode(), string(resp.Body()))
 	}
 
 	if resp.IsError() {
@@ -95,12 +124,11 @@ func (c *Client) parseResponse(resp *resty.Response, v interface{}) error {
 	}
 
 	if v != nil && len(resp.Body()) > 0 {
-		// Debug: log response for empty results
 		var temp map[string]interface{}
 		if err := json.Unmarshal(resp.Body(), &temp); err == nil {
 			if posts, ok := temp["posts"]; ok {
 				if postsArr, ok := posts.([]interface{}); ok && len(postsArr) == 0 {
-					fmt.Printf("Empty posts response from %s\n", resp.Request.URL)
+					c.logDebug("Empty posts response from %s", resp.Request.URL)
 				}
 			}
 		}
@@ -117,4 +145,5 @@ func (c *Client) handleAuthResponse(token string) {
 	if token != "" {
 		c.SetAuthToken(token)
 	}
+	c.client.SetCookieJar(nil)
 }
