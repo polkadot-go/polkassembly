@@ -177,7 +177,7 @@ type Beneficiary struct {
 type PublicUser struct {
 	ID             int            `json:"id"`
 	Username       string         `json:"username"`
-	ProfileScore   int            `json:"profileScore"`
+	ProfileScore   float64        `json:"profileScore"`
 	Rank           int            `json:"rank"`
 	Addresses      []string       `json:"addresses"`
 	ProfileDetails ProfileDetails `json:"profileDetails"`
@@ -361,7 +361,7 @@ type User struct {
 	Bio            string    `json:"bio,omitempty"`
 	Image          string    `json:"image,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
-	ProfileScore   int       `json:"profile_score"`
+	ProfileScore   float64   `json:"profile_score"`
 	FollowerCount  int       `json:"follower_count"`
 	FollowingCount int       `json:"following_count"`
 }

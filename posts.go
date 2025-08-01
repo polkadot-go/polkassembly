@@ -35,7 +35,6 @@ func (c *Client) GetPosts(params PostListingParams) (*PostListingResponse, error
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
 		Get(fmt.Sprintf("/%s", proposalType))
-
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +88,6 @@ func (c *Client) GetPostByType(postID int, proposalType string) (*Post, error) {
 
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/%s/%d", proposalType, postID))
-
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +130,13 @@ func (c *Client) GetPostOnchainDataByType(postID int, proposalType string) (*Pos
 	// Try the onchain info endpoint
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/%s/%d/onchain-info", proposalType, postID))
-
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if response is HTML (404 page)
+	if r.Header().Get("Content-Type") == "text/html" || len(r.Body()) > 0 && r.Body()[0] == '<' {
+		return nil, fmt.Errorf("onchain data not available for post %d", postID)
 	}
 
 	var resp PostOnchainData
@@ -158,7 +160,6 @@ func (c *Client) GetPostCommentsByType(postID int, proposalType string) ([]Comme
 
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/%s/%d/comments", proposalType, postID))
-
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +194,6 @@ func (c *Client) GetContentSummaryByType(postID int, proposalType string) (*Cont
 
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/%s/%d/summary", proposalType, postID))
-
 	if err != nil {
 		return nil, err
 	}
@@ -248,8 +248,7 @@ func (c *Client) CreateOffchainPost(req CreateOffchainPostRequest) (*Post, error
 
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/auth/actions/createPost")
-
+		Post("/api/v1/auth/actions/createPost")
 	if err != nil {
 		return nil, err
 	}
@@ -266,8 +265,7 @@ func (c *Client) CreateOffchainPost(req CreateOffchainPostRequest) (*Post, error
 func (c *Client) UpdatePost(postID int, req UpdatePostRequest) (*Post, error) {
 	r, err := c.client.R().
 		SetBody(req).
-		Post(fmt.Sprintf("/auth/actions/editPost?postId=%d", postID))
-
+		Post(fmt.Sprintf("/api/v1/auth/actions/editPost?postId=%d", postID))
 	if err != nil {
 		return nil, err
 	}
@@ -283,13 +281,11 @@ func (c *Client) UpdatePost(postID int, req UpdatePostRequest) (*Post, error) {
 // IsSubscribed checks if user is subscribed to a post
 func (c *Client) IsSubscribed(postID int) (*SubscriptionStatus, error) {
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/auth/query/isPostSubscribed?postId=%d", postID))
-
+		Get(fmt.Sprintf("/ReferendumV2/%d/subscription", postID))
 	if err != nil {
 		return nil, err
 	}
 
-	// Auth endpoints might not be wrapped
 	var resp SubscriptionStatus
 	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
@@ -302,7 +298,6 @@ func (c *Client) IsSubscribed(postID int) (*SubscriptionStatus, error) {
 func (c *Client) GetChildBounties(bountyID int) ([]Bounty, error) {
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/Bounty/%d/child-bounties", bountyID))
-
 	if err != nil {
 		return nil, err
 	}

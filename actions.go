@@ -4,9 +4,14 @@ import "fmt"
 
 func (c *Client) AddComment(req AddCommentRequest) (*Comment, error) {
 	var resp Comment
+	endpoint := fmt.Sprintf("/%s/%d/comments", req.PostType, req.PostID)
 	r, err := c.client.R().
-		SetBody(req).
-		Post("/auth/actions/postComment")
+		SetBody(map[string]interface{}{
+			"content":   req.Content,
+			"sentiment": req.Sentiment,
+			"parentId":  req.ParentID,
+		}).
+		Post(endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -14,6 +19,24 @@ func (c *Client) AddComment(req AddCommentRequest) (*Comment, error) {
 		return nil, err
 	}
 	return &resp, nil
+}
+
+func (c *Client) SubscribeProposal(postID int) error {
+	r, err := c.client.R().
+		Post(fmt.Sprintf("/ReferendumV2/%d/subscribe", postID))
+	if err != nil {
+		return err
+	}
+	return c.parseResponse(r, nil)
+}
+
+func (c *Client) UnsubscribeProposal(postID int) error {
+	r, err := c.client.R().
+		Post(fmt.Sprintf("/ReferendumV2/%d/unsubscribe", postID))
+	if err != nil {
+		return err
+	}
+	return c.parseResponse(r, nil)
 }
 
 func (c *Client) AddReaction(req AddReactionRequest) (*Reaction, error) {
@@ -65,24 +88,6 @@ func (c *Client) FollowUser(userID int) error {
 func (c *Client) UnfollowUser(userID int) error {
 	r, err := c.client.R().
 		Post(fmt.Sprintf("/auth/actions/unfollowUser?userId=%d", userID))
-	if err != nil {
-		return err
-	}
-	return c.parseResponse(r, nil)
-}
-
-func (c *Client) SubscribeProposal(postID int) error {
-	r, err := c.client.R().
-		Post(fmt.Sprintf("/auth/actions/postSubscribe?postId=%d", postID))
-	if err != nil {
-		return err
-	}
-	return c.parseResponse(r, nil)
-}
-
-func (c *Client) UnsubscribeProposal(postID int) error {
-	r, err := c.client.R().
-		Post(fmt.Sprintf("/auth/actions/postUnsubscribe?postId=%d", postID))
 	if err != nil {
 		return err
 	}
