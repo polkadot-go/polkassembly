@@ -1,6 +1,7 @@
 package polkassembly
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -14,6 +15,7 @@ func getTestClient(t *testing.T) *Client {
 	}
 
 	client := NewClient(Config{
+		BaseURL: fmt.Sprintf("https://%s.polkassembly.io/api/v2", network),
 		Network: network,
 	})
 

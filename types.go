@@ -19,8 +19,9 @@ func (e *APIError) Error() string {
 type Web3AuthRequest struct {
 	Address   string `json:"address"`
 	Signature string `json:"signature"`
-	Message   string `json:"message"`
-	Network   string `json:"network"`
+	Wallet    string `json:"wallet"`
+	Message   string `json:"message,omitempty"`
+	Network   string `json:"network,omitempty"`
 }
 
 type Web3AuthResponse struct {

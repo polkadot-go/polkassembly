@@ -32,7 +32,7 @@ type Config struct {
 
 func NewClient(cfg Config) *Client {
 	if cfg.BaseURL == "" {
-		cfg.BaseURL = "https://api.polkassembly.io/api/v2"
+		cfg.BaseURL = fmt.Sprintf("https://%s.polkassembly.io/api/v2", cfg.Network)
 	}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second

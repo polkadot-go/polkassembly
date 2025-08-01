@@ -7,7 +7,7 @@ func (c *Client) Web3Auth(req Web3AuthRequest) (*Web3AuthResponse, error) {
 	}
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/auth/actions/addressLogin")
+		Post("/auth/web3-auth")
 	if err != nil {
 		return nil, err
 	}
