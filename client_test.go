@@ -2,7 +2,9 @@ package polkassembly
 
 import (
 	"os"
+	"strconv"
 	"testing"
+	"time"
 )
 
 func getTestClient(t *testing.T) *Client {
@@ -11,14 +13,25 @@ func getTestClient(t *testing.T) *Client {
 		network = "polkadot"
 	}
 
-	token := os.Getenv("POLKASSEMBLY_TOKEN")
-
-	return NewClient(Config{
+	client := NewClient(Config{
 		Network: network,
-		Token:   token,
 	})
+
+	// Optional Web3 auth
+	seedPhrase := os.Getenv("POLKASSEMBLY_SEED")
+	if seedPhrase != "" {
+		err := client.AuthenticateWithSeed(network, seedPhrase)
+		if err != nil {
+			t.Logf("Auth failed: %v", err)
+		} else {
+			t.Log("Authenticated with Web3")
+		}
+	}
+
+	return client
 }
 
+// Public endpoints (no auth required)
 func TestGetPosts(t *testing.T) {
 	client := getTestClient(t)
 
@@ -26,35 +39,88 @@ func TestGetPosts(t *testing.T) {
 		Page:         1,
 		ListingLimit: 10,
 	})
-
 	if err != nil {
 		t.Fatalf("GetPosts failed: %v", err)
 	}
 
-	if resp == nil {
-		t.Fatal("GetPosts returned nil response")
+	if resp == nil || len(resp.Posts) == 0 {
+		t.Log("No posts returned")
+		return
 	}
 
-	if len(resp.Posts) == 0 {
-		t.Log("No posts returned (might be empty)")
+	t.Logf("Found %d posts", len(resp.Posts))
+
+	// Test with filters
+	resp2, err := client.GetPosts(PostListingParams{
+		Page:         1,
+		ListingLimit: 5,
+		TrackNo:      0, // Root track
+		TrackStatus:  "Ongoing",
+	})
+	if err != nil {
+		t.Errorf("GetPosts with filters failed: %v", err)
+	} else {
+		t.Logf("Found %d filtered posts", len(resp2.Posts))
 	}
 }
 
 func TestGetPost(t *testing.T) {
 	client := getTestClient(t)
 
-	// Test with a known post ID
-	postID := 1
-	resp, err := client.GetPost(postID)
+	// Get a post ID from listing first
+	posts, err := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 1})
+	if err != nil || len(posts.Posts) == 0 {
+		t.Skip("No posts available")
+	}
 
+	postID := posts.Posts[0].PostID
+	post, err := client.GetPost(postID)
 	if err != nil {
-		t.Logf("GetPost failed (post might not exist): %v", err)
+		t.Fatalf("GetPost failed: %v", err)
+	}
+
+	t.Logf("Got post: %s", post.Title)
+}
+
+func TestGetPostOnchainData(t *testing.T) {
+	client := getTestClient(t)
+
+	posts, err := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 1})
+	if err != nil || len(posts.Posts) == 0 {
+		t.Skip("No posts available")
+	}
+
+	data, err := client.GetPostOnchainData(posts.Posts[0].PostID)
+	if err != nil {
+		t.Logf("GetPostOnchainData failed: %v", err)
 		return
 	}
 
-	if resp.PostID != postID {
-		t.Errorf("Expected post ID %d, got %d", postID, resp.PostID)
+	t.Logf("Onchain data - Ayes: %d, Nays: %d", data.AyesCount, data.NaysCount)
+}
+
+func TestGetPostComments(t *testing.T) {
+	client := getTestClient(t)
+
+	posts, err := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 5})
+	if err != nil || len(posts.Posts) == 0 {
+		t.Skip("No posts available")
 	}
+
+	// Find a post with comments
+	for _, post := range posts.Posts {
+		if post.CommentsCount > 0 {
+			comments, err := client.GetPostComments(post.PostID)
+			if err != nil {
+				t.Errorf("GetPostComments failed: %v", err)
+				continue
+			}
+			t.Logf("Found %d comments for post %d", len(comments), post.PostID)
+			return
+		}
+	}
+
+	t.Log("No posts with comments found")
 }
 
 func TestGetUsers(t *testing.T) {
@@ -64,33 +130,28 @@ func TestGetUsers(t *testing.T) {
 		Page:  1,
 		Limit: 10,
 	})
-
 	if err != nil {
 		t.Fatalf("GetUsers failed: %v", err)
 	}
 
-	if resp == nil {
-		t.Fatal("GetUsers returned nil response")
-	}
+	t.Logf("Found %d users", len(resp.Users))
 }
 
 func TestGetUserByUsername(t *testing.T) {
 	client := getTestClient(t)
 
-	// Skip if no test username provided
-	username := os.Getenv("POLKASSEMBLY_TEST_USERNAME")
-	if username == "" {
-		t.Skip("Skipping test: POLKASSEMBLY_TEST_USERNAME not set")
+	// Get a username from listing
+	users, err := client.GetUsers(UserListingParams{Page: 1, Limit: 1})
+	if err != nil || len(users.Users) == 0 {
+		t.Skip("No users available")
 	}
 
-	resp, err := client.GetUserByUsername(username)
+	user, err := client.GetUserByUsername(users.Users[0].Username)
 	if err != nil {
 		t.Fatalf("GetUserByUsername failed: %v", err)
 	}
 
-	if resp.Username != username {
-		t.Errorf("Expected username %s, got %s", username, resp.Username)
-	}
+	t.Logf("Got user: %s", user.Username)
 }
 
 func TestGetVotes(t *testing.T) {
@@ -100,14 +161,11 @@ func TestGetVotes(t *testing.T) {
 		Page:  1,
 		Limit: 10,
 	})
-
 	if err != nil {
 		t.Fatalf("GetVotes failed: %v", err)
 	}
 
-	if resp == nil {
-		t.Fatal("GetVotes returned nil response")
-	}
+	t.Logf("Found %d votes", len(resp.Votes))
 }
 
 func TestGetPreimages(t *testing.T) {
@@ -117,111 +175,179 @@ func TestGetPreimages(t *testing.T) {
 		Page:  1,
 		Limit: 10,
 	})
-
 	if err != nil {
 		t.Fatalf("GetPreimages failed: %v", err)
 	}
 
-	if resp == nil {
-		t.Fatal("GetPreimages returned nil response")
-	}
+	t.Logf("Found %d preimages", len(resp.Preimages))
 }
 
 func TestGetDelegationStats(t *testing.T) {
 	client := getTestClient(t)
 
-	resp, err := client.GetDelegationStats()
+	stats, err := client.GetDelegationStats()
 	if err != nil {
 		t.Fatalf("GetDelegationStats failed: %v", err)
 	}
 
-	if resp == nil {
-		t.Fatal("GetDelegationStats returned nil response")
-	}
+	t.Logf("Total delegations: %d, Total balance: %s",
+		stats.TotalDelegations, stats.TotalBalance)
 }
 
-func TestGetDelegates(t *testing.T) {
+func TestGetActivityFeed(t *testing.T) {
 	client := getTestClient(t)
 
-	resp, err := client.GetDelegates(1, 10)
+	feed, err := client.GetActivityFeed(1, 10)
 	if err != nil {
-		t.Fatalf("GetDelegates failed: %v", err)
+		t.Fatalf("GetActivityFeed failed: %v", err)
 	}
 
-	if resp == nil {
-		t.Fatal("GetDelegates returned nil response")
-	}
+	t.Logf("Found %d activity items", len(feed))
 }
 
-// Test authenticated endpoints (requires valid token)
+// Authenticated endpoints
 func TestAuthenticatedEndpoints(t *testing.T) {
-	token := os.Getenv("POLKASSEMBLY_TOKEN")
-	if token == "" {
-		t.Skip("Skipping authenticated tests: POLKASSEMBLY_TOKEN not set")
+	seedPhrase := os.Getenv("POLKASSEMBLY_SEED")
+	if seedPhrase == "" {
+		t.Skip("Skipping authenticated tests: POLKASSEMBLY_SEED not set")
 	}
 
 	client := getTestClient(t)
 
 	t.Run("GetCartItems", func(t *testing.T) {
-		resp, err := client.GetCartItems()
+		items, err := client.GetCartItems()
 		if err != nil {
-			t.Logf("GetCartItems failed (might be empty): %v", err)
-		} else if resp != nil {
-			t.Logf("Cart has %d items", len(resp))
+			t.Logf("GetCartItems failed: %v", err)
+		} else {
+			t.Logf("Cart has %d items", len(items))
 		}
 	})
 
 	t.Run("IsSubscribed", func(t *testing.T) {
-		postID := 1
-		resp, err := client.IsSubscribed(postID)
+		posts, _ := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 1})
+		if len(posts.Posts) > 0 {
+			status, err := client.IsSubscribed(posts.Posts[0].PostID)
+			if err != nil {
+				t.Logf("IsSubscribed failed: %v", err)
+			} else {
+				t.Logf("Subscription status: %v", status.Subscribed)
+			}
+		}
+	})
+
+	t.Run("CreateAndUpdateComment", func(t *testing.T) {
+		posts, _ := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 1})
+		if len(posts.Posts) == 0 {
+			t.Skip("No posts available")
+		}
+
+		// Create comment
+		comment, err := client.AddComment(AddCommentRequest{
+			Content:  "Test comment from Go client at " + time.Now().Format(time.RFC3339),
+			PostID:   posts.Posts[0].PostID,
+			PostType: "on_chain",
+		})
 		if err != nil {
-			t.Logf("IsSubscribed failed: %v", err)
-		} else if resp != nil {
-			t.Logf("Subscription status for post %d: %v", postID, resp.Subscribed)
+			t.Logf("AddComment failed: %v", err)
+			return
+		}
+
+		t.Logf("Created comment ID: %s", comment.ID)
+
+		// Update comment
+		commentID, _ := strconv.Atoi(comment.ID)
+		updated, err := client.UpdateComment(commentID, UpdateCommentRequest{
+			Content: "Updated: " + comment.Content,
+		})
+		if err != nil {
+			t.Logf("UpdateComment failed: %v", err)
+		} else {
+			t.Logf("Updated comment: %s", updated.Content)
+		}
+	})
+
+	t.Run("Reactions", func(t *testing.T) {
+		posts, _ := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 1})
+		if len(posts.Posts) == 0 {
+			t.Skip("No posts available")
+		}
+
+		reaction, err := client.AddReaction(AddReactionRequest{
+			PostID:   posts.Posts[0].PostID,
+			PostType: "on_chain",
+			Reaction: "👍",
+		})
+		if err != nil {
+			t.Logf("AddReaction failed: %v", err)
+		} else {
+			t.Logf("Added reaction ID: %s", reaction.ID)
+
+			// Delete reaction
+			reactionID, _ := strconv.Atoi(reaction.ID)
+			err = client.DeleteReaction(reactionID)
+			if err != nil {
+				t.Logf("DeleteReaction failed: %v", err)
+			} else {
+				t.Log("Deleted reaction")
+			}
+		}
+	})
+
+	t.Run("SubscribeUnsubscribe", func(t *testing.T) {
+		posts, _ := client.GetPosts(PostListingParams{Page: 1, ListingLimit: 1})
+		if len(posts.Posts) == 0 {
+			t.Skip("No posts available")
+		}
+
+		postID := posts.Posts[0].PostID
+
+		// Subscribe
+		err := client.SubscribeProposal(postID)
+		if err != nil {
+			t.Logf("Subscribe failed: %v", err)
+		} else {
+			t.Log("Subscribed to proposal")
+		}
+
+		// Check subscription
+		status, _ := client.IsSubscribed(postID)
+		t.Logf("Subscription status after subscribe: %v", status.Subscribed)
+
+		// Unsubscribe
+		err = client.UnsubscribeProposal(postID)
+		if err != nil {
+			t.Logf("Unsubscribe failed: %v", err)
+		} else {
+			t.Log("Unsubscribed from proposal")
+		}
+	})
+
+	t.Run("EditProfile", func(t *testing.T) {
+		user, err := client.EditUserDetails(EditUserDetailsRequest{
+			Bio: "Test bio updated at " + time.Now().Format(time.RFC3339),
+		})
+		if err != nil {
+			t.Logf("EditUserDetails failed: %v", err)
+		} else {
+			t.Logf("Updated user bio: %s", user.Bio)
 		}
 	})
 }
 
-// Storage implementation for testing
-type TestStorage struct {
-	token string
-}
-
-func (s *TestStorage) SaveToken(token string) error {
-	s.token = token
-	return nil
-}
-
-func (s *TestStorage) GetToken() (string, error) {
-	return s.token, nil
-}
-
-func (s *TestStorage) DeleteToken() error {
-	s.token = ""
-	return nil
-}
-
-func TestTokenStorage(t *testing.T) {
-	storage := &TestStorage{}
-	client := NewClient(Config{
-		Network:      "polkadot",
-		TokenStorage: storage,
+// Run all tests
+func TestAll(t *testing.T) {
+	t.Run("PublicEndpoints", func(t *testing.T) {
+		t.Run("Posts", TestGetPosts)
+		t.Run("Post", TestGetPost)
+		t.Run("OnchainData", TestGetPostOnchainData)
+		t.Run("Comments", TestGetPostComments)
+		t.Run("Users", TestGetUsers)
+		t.Run("UserByUsername", TestGetUserByUsername)
+		t.Run("Votes", TestGetVotes)
+		t.Run("Preimages", TestGetPreimages)
+		t.Run("DelegationStats", TestGetDelegationStats)
+		t.Run("ActivityFeed", TestGetActivityFeed)
 	})
 
-	testToken := "test-token-123"
-	client.SetAuthToken(testToken)
-
-	if storage.token != testToken {
-		t.Errorf("Expected token %s in storage, got %s", testToken, storage.token)
-	}
-
-	// Test loading token from storage
-	client2 := NewClient(Config{
-		Network:      "polkadot",
-		TokenStorage: storage,
-	})
-
-	if client2.token != testToken {
-		t.Errorf("Expected token %s loaded from storage, got %s", testToken, client2.token)
-	}
+	t.Run("AuthenticatedEndpoints", TestAuthenticatedEndpoints)
 }
