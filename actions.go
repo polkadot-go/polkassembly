@@ -26,23 +26,6 @@ func (c *Client) AddComment(proposalType string, postID int, req AddCommentReque
 	return &resp, nil
 }
 
-func (c *Client) AddReaction(proposalType string, postID int, reaction string) (*Reaction, error) {
-	var resp Reaction
-	endpoint := fmt.Sprintf("/%s/%d/reactions", proposalType, postID)
-	r, err := c.client.R().
-		SetBody(map[string]interface{}{
-			"reaction": reaction,
-		}).
-		Post(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	if err := c.parseResponse(r, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 func (c *Client) UpdateComment(proposalType string, postID int, commentID string, content interface{}) (*Comment, error) {
 	var resp Comment
 	endpoint := fmt.Sprintf("/%s/%d/comments/%s", proposalType, postID, commentID)
@@ -54,6 +37,40 @@ func (c *Client) UpdateComment(proposalType string, postID int, commentID string
 	if err != nil {
 		return nil, err
 	}
+
+	// Check if response is successful but empty
+	if r.StatusCode() == 200 && len(r.Body()) == 0 {
+		// Return the original comment with updated content
+		resp.ID = commentID
+		resp.Content = content
+		return &resp, nil
+	}
+
+	if err := c.parseResponse(r, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) AddReaction(proposalType string, postID int, reaction string) (*Reaction, error) {
+	var resp Reaction
+	endpoint := fmt.Sprintf("/%s/%d/reactions", proposalType, postID)
+	r, err := c.client.R().
+		SetBody(map[string]interface{}{
+			"reaction": reaction,
+		}).
+		Post(endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	// API might return 200 with empty response
+	if r.StatusCode() == 200 && len(r.Body()) == 0 {
+		// Create a placeholder response
+		resp.Reaction = reaction
+		return &resp, nil
+	}
+
 	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
 	}

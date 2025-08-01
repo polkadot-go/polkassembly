@@ -234,12 +234,35 @@ func (c *Client) GetActivityFeed(page, limit int) ([]ActivityFeedItem, error) {
 		return nil, err
 	}
 
-	var items []ActivityFeedItem
-	if err := c.parseResponse(r, &items); err != nil {
+	// API returns object with items array
+	var resp struct {
+		Items []ActivityFeedItem `json:"items"`
+	}
+	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
 	}
 
-	return items, nil
+	return resp.Items, nil
+}
+
+// IsSubscribed checks if user is subscribed to a post
+func (c *Client) IsSubscribed(proposalType string, postID int) (*SubscriptionStatus, error) {
+	if proposalType == "" {
+		proposalType = "ReferendumV2"
+	}
+
+	r, err := c.client.R().
+		Get(fmt.Sprintf("/%s/%d/subscription", proposalType, postID))
+	if err != nil {
+		return nil, err
+	}
+
+	var resp SubscriptionStatus
+	if err := c.parseResponse(r, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
 }
 
 // CreateOffchainPost creates an offchain discussion post
@@ -288,26 +311,6 @@ func (c *Client) UpdatePost(proposalType string, postID int, req UpdatePostReque
 	}
 
 	var resp Post
-	if err := c.parseResponse(r, &resp); err != nil {
-		return nil, err
-	}
-
-	return &resp, nil
-}
-
-// IsSubscribed checks if user is subscribed to a post
-func (c *Client) IsSubscribed(proposalType string, postID int) (*SubscriptionStatus, error) {
-	if proposalType == "" {
-		proposalType = "ReferendumV2"
-	}
-
-	r, err := c.client.R().
-		Get(fmt.Sprintf("/%s/%d/subscribe", proposalType, postID))
-	if err != nil {
-		return nil, err
-	}
-
-	var resp SubscriptionStatus
 	if err := c.parseResponse(r, &resp); err != nil {
 		return nil, err
 	}

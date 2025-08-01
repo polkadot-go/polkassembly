@@ -345,13 +345,17 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 		if err != nil {
 			t.Logf("AddReaction failed: %v", err)
 		} else {
-			t.Logf("Added reaction ID: %s", reaction.ID)
-			// Delete reaction
-			err = client.DeleteReaction("ReferendumV2", postID, reaction.ID)
-			if err != nil {
-				t.Logf("DeleteReaction failed: %v", err)
+			t.Logf("Added reaction: %s", reaction.Reaction)
+			// Skip delete if no ID returned
+			if reaction.ID != "" {
+				err = client.DeleteReaction("ReferendumV2", postID, reaction.ID)
+				if err != nil {
+					t.Logf("DeleteReaction failed: %v", err)
+				} else {
+					t.Log("Deleted reaction")
+				}
 			} else {
-				t.Log("Deleted reaction")
+				t.Log("Reaction API returned empty ID, skipping delete")
 			}
 		}
 	})
