@@ -2,11 +2,10 @@ package polkassembly
 
 import "fmt"
 
-func (c *Client) GetCartItems() ([]CartItem, error) {
+func (c *Client) GetCartItems(userID int) ([]CartItem, error) {
 	var resp []CartItem
-	// Auth endpoint, not a proposal type endpoint
 	r, err := c.client.R().
-		Get("/auth/query/cartItems")
+		Get(fmt.Sprintf("/users/id/%d/vote-cart", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -16,11 +15,11 @@ func (c *Client) GetCartItems() ([]CartItem, error) {
 	return resp, nil
 }
 
-func (c *Client) AddCartItem(req AddCartItemRequest) (*CartItem, error) {
+func (c *Client) AddCartItem(userID int, req AddCartItemRequest) (*CartItem, error) {
 	var resp CartItem
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/auth/actions/addCartItem")
+		Post(fmt.Sprintf("/users/id/%d/vote-cart", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -30,11 +29,11 @@ func (c *Client) AddCartItem(req AddCartItemRequest) (*CartItem, error) {
 	return &resp, nil
 }
 
-func (c *Client) UpdateCartItem(itemID int, req UpdateCartItemRequest) (*CartItem, error) {
+func (c *Client) UpdateCartItem(userID int, req UpdateCartItemRequest) (*CartItem, error) {
 	var resp CartItem
 	r, err := c.client.R().
 		SetBody(req).
-		Post(fmt.Sprintf("/auth/actions/updateCartItem?itemId=%d", itemID))
+		Patch(fmt.Sprintf("/users/id/%d/vote-cart", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -44,9 +43,10 @@ func (c *Client) UpdateCartItem(itemID int, req UpdateCartItemRequest) (*CartIte
 	return &resp, nil
 }
 
-func (c *Client) DeleteCartItem(itemID int) error {
+func (c *Client) DeleteCartItem(userID int, itemID string) error {
 	r, err := c.client.R().
-		Post(fmt.Sprintf("/auth/actions/deleteCartItem?itemId=%d", itemID))
+		SetBody(map[string]string{"id": itemID}).
+		Delete(fmt.Sprintf("/users/id/%d/vote-cart", userID))
 	if err != nil {
 		return err
 	}

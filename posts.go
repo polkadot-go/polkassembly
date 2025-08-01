@@ -19,7 +19,7 @@ func (c *Client) GetPosts(params PostListingParams) (*PostListingResponse, error
 		queryParams["page"] = fmt.Sprintf("%d", params.Page)
 	}
 	if params.ListingLimit > 0 {
-		queryParams["listingLimit"] = fmt.Sprintf("%d", params.ListingLimit)
+		queryParams["limit"] = fmt.Sprintf("%d", params.ListingLimit)
 	}
 	if params.SortBy != "" {
 		queryParams["sortBy"] = params.SortBy
@@ -28,7 +28,10 @@ func (c *Client) GetPosts(params PostListingParams) (*PostListingResponse, error
 		queryParams["trackNo"] = fmt.Sprintf("%d", params.TrackNo)
 	}
 	if params.TrackStatus != "" {
-		queryParams["trackStatus"] = params.TrackStatus
+		queryParams["status"] = params.TrackStatus
+	}
+	if params.Origin != "" {
+		queryParams["origin"] = params.Origin
 	}
 
 	// The API expects proposalType as the main path
@@ -127,24 +130,32 @@ func (c *Client) GetPostOnchainDataByType(postID int, proposalType string) (*Pos
 		proposalType = "ReferendumV2"
 	}
 
-	// Try the onchain info endpoint
-	r, err := c.client.R().
-		Get(fmt.Sprintf("/%s/%d/onchain-info", proposalType, postID))
+	// v2 API returns onchain data in the main post endpoint
+	post, err := c.GetPostByType(postID, proposalType)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if response is HTML (404 page)
-	if r.Header().Get("Content-Type") == "text/html" || len(r.Body()) > 0 && r.Body()[0] == '<' {
+	if post.OnChainInfo == nil {
 		return nil, fmt.Errorf("onchain data not available for post %d", postID)
 	}
 
-	var resp PostOnchainData
-	if err := json.Unmarshal(r.Body(), &resp); err != nil {
-		return nil, fmt.Errorf("unmarshal onchain data: %w", err)
+	// Map to PostOnchainData
+	data := &PostOnchainData{
+		Hash:   post.OnChainInfo.Hash,
+		Status: post.OnChainInfo.Status,
 	}
 
-	return &resp, nil
+	if post.OnChainInfo.VoteMetrics.Aye.Count > 0 {
+		data.AyesCount = post.OnChainInfo.VoteMetrics.Aye.Count
+		data.SupportAmount = post.OnChainInfo.VoteMetrics.Aye.Value
+	}
+	if post.OnChainInfo.VoteMetrics.Nay.Count > 0 {
+		data.NaysCount = post.OnChainInfo.VoteMetrics.Nay.Count
+		data.AgainstAmount = post.OnChainInfo.VoteMetrics.Nay.Value
+	}
+
+	return data, nil
 }
 
 // GetPostComments retrieves comments for a post
@@ -193,7 +204,7 @@ func (c *Client) GetContentSummaryByType(postID int, proposalType string) (*Cont
 	}
 
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/%s/%d/summary", proposalType, postID))
+		Get(fmt.Sprintf("/%s/%d/content-summary", proposalType, postID))
 	if err != nil {
 		return nil, err
 	}
@@ -208,47 +219,41 @@ func (c *Client) GetContentSummaryByType(postID int, proposalType string) (*Cont
 
 // GetActivityFeed retrieves the activity feed
 func (c *Client) GetActivityFeed(page, limit int) ([]ActivityFeedItem, error) {
-	// Activity feed is likely just posts endpoint
-	posts, err := c.GetPosts(PostListingParams{
-		Page:         page,
-		ListingLimit: limit,
-		ProposalType: "ReferendumV2",
-	})
+	queryParams := make(map[string]string)
+	if page > 0 {
+		queryParams["page"] = fmt.Sprintf("%d", page)
+	}
+	if limit > 0 {
+		queryParams["limit"] = fmt.Sprintf("%d", limit)
+	}
+
+	r, err := c.client.R().
+		SetQueryParams(queryParams).
+		Get("/activity-feed")
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert posts to activity items
 	var items []ActivityFeedItem
-	for _, post := range posts.Posts {
-		postID := post.PostID
-		if postID == 0 {
-			postID = post.Index
-		}
-		items = append(items, ActivityFeedItem{
-			ID:       fmt.Sprintf("%d", postID),
-			Type:     "post",
-			PostID:   postID,
-			PostType: post.ProposalType,
-			Username: post.Username,
-			Network:  post.Network,
-			Content:  post.Title,
-		})
+	if err := c.parseResponse(r, &items); err != nil {
+		return nil, err
 	}
 
 	return items, nil
 }
 
 // CreateOffchainPost creates an offchain discussion post
-func (c *Client) CreateOffchainPost(req CreateOffchainPostRequest) (*Post, error) {
-	// Set default post type
-	if req.PostType == "" {
-		req.PostType = "Discussion"
+func (c *Client) CreateOffchainPost(proposalType string, req CreateOffchainPostRequest) (*Post, error) {
+	if proposalType == "" {
+		proposalType = "Discussion"
 	}
 
 	r, err := c.client.R().
-		SetBody(req).
-		Post("/api/v1/auth/actions/createPost")
+		SetBody(map[string]interface{}{
+			"title":   req.Title,
+			"content": req.Content,
+		}).
+		Post(fmt.Sprintf("/%s", proposalType))
 	if err != nil {
 		return nil, err
 	}
@@ -262,10 +267,22 @@ func (c *Client) CreateOffchainPost(req CreateOffchainPostRequest) (*Post, error
 }
 
 // UpdatePost updates an existing post
-func (c *Client) UpdatePost(postID int, req UpdatePostRequest) (*Post, error) {
+func (c *Client) UpdatePost(proposalType string, postID int, req UpdatePostRequest) (*Post, error) {
+	if proposalType == "" {
+		proposalType = "ReferendumV2"
+	}
+
+	body := make(map[string]interface{})
+	if req.Title != "" {
+		body["title"] = req.Title
+	}
+	if req.Content != "" {
+		body["content"] = req.Content
+	}
+
 	r, err := c.client.R().
-		SetBody(req).
-		Post(fmt.Sprintf("/api/v1/auth/actions/editPost?postId=%d", postID))
+		SetBody(body).
+		Patch(fmt.Sprintf("/%s/%d", proposalType, postID))
 	if err != nil {
 		return nil, err
 	}
@@ -279,9 +296,13 @@ func (c *Client) UpdatePost(postID int, req UpdatePostRequest) (*Post, error) {
 }
 
 // IsSubscribed checks if user is subscribed to a post
-func (c *Client) IsSubscribed(postID int) (*SubscriptionStatus, error) {
+func (c *Client) IsSubscribed(proposalType string, postID int) (*SubscriptionStatus, error) {
+	if proposalType == "" {
+		proposalType = "ReferendumV2"
+	}
+
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/ReferendumV2/%d/subscription", postID))
+		Get(fmt.Sprintf("/%s/%d/subscribe", proposalType, postID))
 	if err != nil {
 		return nil, err
 	}
@@ -310,4 +331,24 @@ func (c *Client) GetChildBounties(bountyID int) ([]Bounty, error) {
 	}
 
 	return resp.ChildBounties, nil
+}
+
+// GetPreimageForPost retrieves preimage for a specific post
+func (c *Client) GetPreimageForPost(proposalType string, postID int) (*Preimage, error) {
+	if proposalType == "" {
+		proposalType = "ReferendumV2"
+	}
+
+	r, err := c.client.R().
+		Get(fmt.Sprintf("/%s/%d/preimage", proposalType, postID))
+	if err != nil {
+		return nil, err
+	}
+
+	var resp Preimage
+	if err := c.parseResponse(r, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
 }

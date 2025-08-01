@@ -6,8 +6,7 @@ import (
 
 func (c *Client) GetUserByID(userID int) (*User, error) {
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/users/%d", userID))
-
+		Get(fmt.Sprintf("/users/id/%d", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -31,8 +30,7 @@ func (c *Client) GetUserFollowing(userID int, page, limit int) (*UserListingResp
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get(fmt.Sprintf("/users/%d/following", userID))
-
+		Get(fmt.Sprintf("/users/id/%d/following", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +54,7 @@ func (c *Client) GetUserFollowers(userID int, page, limit int) (*UserListingResp
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get(fmt.Sprintf("/users/%d/followers", userID))
-
+		Get(fmt.Sprintf("/users/id/%d/followers", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +78,7 @@ func (c *Client) GetUserActivity(userID int, page, limit int) (*UserActivity, er
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get(fmt.Sprintf("/users/%d/activity", userID))
-
+		Get(fmt.Sprintf("/users/id/%d/activities", userID))
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +94,6 @@ func (c *Client) GetUserActivity(userID int, page, limit int) (*UserActivity, er
 func (c *Client) GetUserByUsername(username string) (*User, error) {
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/users/username/%s", username))
-
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +109,6 @@ func (c *Client) GetUserByUsername(username string) (*User, error) {
 func (c *Client) GetUserByAddress(address string) (*User, error) {
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/users/address/%s", address))
-
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +136,6 @@ func (c *Client) GetUsers(params UserListingParams) (*UserListingResponse, error
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
 		Get("/users")
-
 	if err != nil {
 		return nil, err
 	}

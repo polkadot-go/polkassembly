@@ -5,7 +5,6 @@ import (
 )
 
 // GetVotes retrieves votes for a specific proposal
-// The API expects: /api/v2/{proposalType}/{postId}/votes
 func (c *Client) GetVotes(params VoteListingParams) (*VoteListingResponse, error) {
 	return c.GetVotesByType(params, "ReferendumV2")
 }
@@ -23,20 +22,15 @@ func (c *Client) GetVotesByType(params VoteListingParams, proposalType string) (
 	if params.Limit > 0 {
 		queryParams["limit"] = fmt.Sprintf("%d", params.Limit)
 	}
-	if params.VoteType != "" {
-		queryParams["voteType"] = params.VoteType
+	if params.Decision != "" {
+		queryParams["decision"] = params.Decision
 	}
 
-	// If postID is provided, get votes for specific post
-	endpoint := fmt.Sprintf("/%s/votes", proposalType)
-	if params.PostID > 0 {
-		endpoint = fmt.Sprintf("/%s/%d/votes", proposalType, params.PostID)
-	}
+	endpoint := fmt.Sprintf("/%s/%d/votes", proposalType, params.PostID)
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
 		Get(endpoint)
-
 	if err != nil {
 		return nil, err
 	}
@@ -50,10 +44,12 @@ func (c *Client) GetVotesByType(params VoteListingParams, proposalType string) (
 }
 
 // GetVotesByAddress retrieves votes by a specific address
-func (c *Client) GetVotesByAddress(address string, page, limit int) (*VoteListingResponse, error) {
-	queryParams := map[string]string{
-		"voterAddress": address,
+func (c *Client) GetVotesByAddress(proposalType string, postID int, address string, page, limit int) (*VoteListingResponse, error) {
+	if proposalType == "" {
+		proposalType = "ReferendumV2"
 	}
+
+	queryParams := map[string]string{}
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
@@ -63,8 +59,7 @@ func (c *Client) GetVotesByAddress(address string, page, limit int) (*VoteListin
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get("/votes/address")
-
+		Get(fmt.Sprintf("/%s/%d/votes/user/address/%s", proposalType, postID, address))
 	if err != nil {
 		return nil, err
 	}
@@ -78,10 +73,12 @@ func (c *Client) GetVotesByAddress(address string, page, limit int) (*VoteListin
 }
 
 // GetVotesByUserID retrieves votes by a specific user ID
-func (c *Client) GetVotesByUserID(userID int, page, limit int) (*VoteListingResponse, error) {
-	queryParams := map[string]string{
-		"userId": fmt.Sprintf("%d", userID),
+func (c *Client) GetVotesByUserID(proposalType string, postID int, userID int, page, limit int) (*VoteListingResponse, error) {
+	if proposalType == "" {
+		proposalType = "ReferendumV2"
 	}
+
+	queryParams := map[string]string{}
 	if page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", page)
 	}
@@ -91,8 +88,7 @@ func (c *Client) GetVotesByUserID(userID int, page, limit int) (*VoteListingResp
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get("/votes/user")
-
+		Get(fmt.Sprintf("/%s/%d/votes/user/id/%d", proposalType, postID, userID))
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +113,7 @@ func (c *Client) GetVotingCurveByType(postID int, proposalType string) ([]Voting
 	}
 
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/%s/%d/voting-curve", proposalType, postID))
-
+		Get(fmt.Sprintf("/%s/%d/vote-curves", proposalType, postID))
 	if err != nil {
 		return nil, err
 	}

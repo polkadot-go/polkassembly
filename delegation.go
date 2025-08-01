@@ -39,7 +39,7 @@ func (c *Client) GetDelegates(page, limit int) ([]Delegate, error) {
 func (c *Client) CreatePADelegate(req CreatePADelegateRequest) (*Delegate, error) {
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/auth/actions/createPADelegate")
+		Post("/delegation/delegates")
 	if err != nil {
 		return nil, err
 	}
@@ -50,10 +50,10 @@ func (c *Client) CreatePADelegate(req CreatePADelegateRequest) (*Delegate, error
 	return &resp, nil
 }
 
-func (c *Client) UpdatePADelegate(delegateID int, req UpdatePADelegateRequest) (*Delegate, error) {
+func (c *Client) UpdatePADelegate(address string, manifesto string) (*Delegate, error) {
 	r, err := c.client.R().
-		SetBody(req).
-		Post(fmt.Sprintf("/auth/actions/updatePADelegate?delegateId=%d", delegateID))
+		SetBody(map[string]string{"manifesto": manifesto}).
+		Patch(fmt.Sprintf("/delegation/delegates/%s", address))
 	if err != nil {
 		return nil, err
 	}
@@ -64,9 +64,9 @@ func (c *Client) UpdatePADelegate(delegateID int, req UpdatePADelegateRequest) (
 	return &resp, nil
 }
 
-func (c *Client) GetPADelegate(delegateID int) (*Delegate, error) {
+func (c *Client) GetPADelegate(address string) (*Delegate, error) {
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/auth/query/paDelegate?delegateId=%d", delegateID))
+		Get(fmt.Sprintf("/delegation/delegates/%s", address))
 	if err != nil {
 		return nil, err
 	}
@@ -77,18 +77,18 @@ func (c *Client) GetPADelegate(delegateID int) (*Delegate, error) {
 	return &resp, nil
 }
 
-func (c *Client) DeletePADelegate(delegateID int) error {
+func (c *Client) DeletePADelegate(address string) error {
 	r, err := c.client.R().
-		Post(fmt.Sprintf("/auth/actions/deletePADelegate?delegateId=%d", delegateID))
+		Delete(fmt.Sprintf("/delegation/delegates/%s", address))
 	if err != nil {
 		return err
 	}
 	return c.parseResponse(r, nil)
 }
 
-func (c *Client) GetUserAllTracksStats(userID int) ([]TrackStats, error) {
+func (c *Client) GetUserAllTracksStats(address string) ([]TrackStats, error) {
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/auth/query/userTracksStats?userId=%d", userID))
+		Get(fmt.Sprintf("/users/address/%s/delegation/tracks", address))
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +99,9 @@ func (c *Client) GetUserAllTracksStats(userID int) ([]TrackStats, error) {
 	return resp, nil
 }
 
-func (c *Client) GetUserTracksLevelData(userID int) ([]TrackLevelData, error) {
+func (c *Client) GetUserTracksLevelData(address string, trackNum int) ([]TrackLevelData, error) {
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/auth/query/userTracksLevel?userId=%d", userID))
+		Get(fmt.Sprintf("/users/address/%s/delegation/tracks/%d", address, trackNum))
 	if err != nil {
 		return nil, err
 	}

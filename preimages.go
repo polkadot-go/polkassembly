@@ -2,22 +2,6 @@ package polkassembly
 
 import "fmt"
 
-func (c *Client) GetPreimageForPost(postID int) (*Preimage, error) {
-	r, err := c.client.R().
-		Get(fmt.Sprintf("/posts/preimage?postId=%d", postID))
-
-	if err != nil {
-		return nil, err
-	}
-
-	var resp Preimage
-	if err := c.parseResponse(r, &resp); err != nil {
-		return nil, err
-	}
-
-	return &resp, nil
-}
-
 func (c *Client) GetPreimages(params PreimageListingParams) (*PreimageListingResponse, error) {
 	queryParams := make(map[string]string)
 	if params.Page > 0 {
@@ -26,14 +10,10 @@ func (c *Client) GetPreimages(params PreimageListingParams) (*PreimageListingRes
 	if params.Limit > 0 {
 		queryParams["limit"] = fmt.Sprintf("%d", params.Limit)
 	}
-	if params.Status != "" {
-		queryParams["status"] = params.Status
-	}
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).
-		Get("/preimages/list")
-
+		Get("/preimages")
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +28,7 @@ func (c *Client) GetPreimages(params PreimageListingParams) (*PreimageListingRes
 
 func (c *Client) GetPreimageByHash(hash string) (*Preimage, error) {
 	r, err := c.client.R().
-		Get(fmt.Sprintf("/preimages/hash?hash=%s", hash))
-
+		Get(fmt.Sprintf("/preimages/%s", hash))
 	if err != nil {
 		return nil, err
 	}

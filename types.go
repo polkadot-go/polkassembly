@@ -31,8 +31,8 @@ type Web3AuthResponse struct {
 }
 
 type Web2LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	EmailOrUsername string `json:"emailOrUsername"`
+	Password        string `json:"password"`
 }
 
 type Web2LoginResponse struct {
@@ -64,17 +64,24 @@ type QRSessionResponse struct {
 
 type ClaimQRSessionRequest struct {
 	SessionID string `json:"sessionId"`
-	Signature string `json:"signature"`
-	Address   string `json:"address"`
+	Signature string `json:"signature,omitempty"`
+	Address   string `json:"address,omitempty"`
 }
 
 type EditUserDetailsRequest struct {
-	Username    string   `json:"username,omitempty"`
-	Email       string   `json:"email,omitempty"`
-	Bio         string   `json:"bio,omitempty"`
-	Image       string   `json:"image,omitempty"`
-	Title       string   `json:"title,omitempty"`
-	SocialLinks []string `json:"social_links,omitempty"`
+	Username          string             `json:"username,omitempty"`
+	Email             string             `json:"email,omitempty"`
+	Bio               string             `json:"bio,omitempty"`
+	Badges            []string           `json:"badges,omitempty"`
+	Title             string             `json:"title,omitempty"`
+	Image             string             `json:"image,omitempty"`
+	CoverImage        string             `json:"coverImage,omitempty"`
+	PublicSocialLinks []PublicSocialLink `json:"publicSocialLinks,omitempty"`
+}
+
+type PublicSocialLink struct {
+	Platform string `json:"platform"`
+	URL      string `json:"url"`
 }
 
 // Post types
@@ -86,6 +93,7 @@ type PostListingParams struct {
 	ProposalType string `json:"proposalType,omitempty"`
 	SortBy       string `json:"sortBy,omitempty"`
 	SearchTerm   string `json:"searchTerm,omitempty"`
+	Origin       string `json:"origin,omitempty"`
 }
 
 type PostListingResponse struct {
@@ -206,20 +214,25 @@ type PostOnchainData struct {
 }
 
 type ContentSummary struct {
-	Summary  string   `json:"summary"`
-	Keywords []string `json:"keywords"`
+	CreatedAt    time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	IndexOrHash  string    `json:"indexOrHash"`
+	Network      string    `json:"network"`
+	PostSummary  string    `json:"postSummary"`
+	ProposalType string    `json:"proposalType"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 type Comment struct {
-	ID        string    `json:"id"`
-	Content   string    `json:"content"`
-	Username  string    `json:"username"`
-	UserID    int       `json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Replies   []Comment `json:"replies,omitempty"`
-	Sentiment int       `json:"sentiment"`
-	IsDeleted bool      `json:"is_deleted"`
+	ID        string      `json:"id"`
+	Content   interface{} `json:"content"`
+	Username  string      `json:"username"`
+	UserID    int         `json:"user_id"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Replies   []Comment   `json:"replies,omitempty"`
+	Sentiment int         `json:"sentiment"`
+	IsDeleted bool        `json:"is_deleted"`
 }
 
 type ActivityFeedItem struct {
@@ -235,11 +248,10 @@ type ActivityFeedItem struct {
 }
 
 type CreateOffchainPostRequest struct {
-	Title    string   `json:"title"`
-	Content  string   `json:"content"`
-	TopicID  int      `json:"topic_id"`
-	Tags     []string `json:"tags,omitempty"`
-	PostType string   `json:"post_type,omitempty"`
+	Title   string   `json:"title"`
+	Content string   `json:"content"`
+	TopicID int      `json:"topic_id,omitempty"`
+	Tags    []string `json:"tags,omitempty"`
 }
 
 type UpdatePostRequest struct {
@@ -268,7 +280,7 @@ type VoteListingParams struct {
 	PostID   int    `json:"postId,omitempty"`
 	Page     int    `json:"page,omitempty"`
 	Limit    int    `json:"limit,omitempty"`
-	VoteType string `json:"voteType,omitempty"`
+	Decision string `json:"decision,omitempty"`
 }
 
 type VoteListingResponse struct {
@@ -306,23 +318,13 @@ type CreateVoteRequest struct {
 
 // Action types
 type AddCommentRequest struct {
-	Content   string `json:"content"`
-	PostID    int    `json:"postId"`
-	PostType  string `json:"postType"`
-	Sentiment int    `json:"sentiment,omitempty"`
-	ParentID  string `json:"parentId,omitempty"`
-}
-
-type AddReactionRequest struct {
-	PostID    int    `json:"postId"`
-	PostType  string `json:"postType"`
-	Reaction  string `json:"reaction"`
-	CommentID string `json:"commentId,omitempty"`
+	Content  interface{} `json:"content"`
+	ParentID string      `json:"parentCommentId,omitempty"`
+	Address  string      `json:"address,omitempty"`
 }
 
 type UpdateCommentRequest struct {
-	Content   string `json:"content"`
-	Sentiment int    `json:"sentiment,omitempty"`
+	Content interface{} `json:"content"`
 }
 
 type Reaction struct {
@@ -410,30 +412,36 @@ type PreimageListingResponse struct {
 
 // Vote Cart types
 type CartItem struct {
-	ID           string    `json:"id"`
-	PostID       int       `json:"postId"`
-	ProposalType string    `json:"proposalType"`
-	AyeBalance   string    `json:"ayeBalance"`
-	NayBalance   string    `json:"nayBalance"`
-	Abstain      string    `json:"abstain"`
-	LockPeriod   int       `json:"lockPeriod"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID              string     `json:"id"`
+	PostIndexOrHash string     `json:"postIndexOrHash"`
+	ProposalType    string     `json:"proposalType"`
+	Decision        string     `json:"decision"`
+	Amount          CartAmount `json:"amount"`
+	Conviction      int        `json:"conviction"`
+	Title           string     `json:"title"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+type CartAmount struct {
+	Abstain string `json:"abstain"`
+	Aye     string `json:"aye"`
+	Nay     string `json:"nay"`
 }
 
 type AddCartItemRequest struct {
-	PostID       int    `json:"postId"`
-	ProposalType string `json:"proposalType"`
-	AyeBalance   string `json:"ayeBalance,omitempty"`
-	NayBalance   string `json:"nayBalance,omitempty"`
-	Abstain      string `json:"abstain,omitempty"`
-	LockPeriod   int    `json:"lockPeriod,omitempty"`
+	PostIndexOrHash string     `json:"postIndexOrHash"`
+	ProposalType    string     `json:"proposalType"`
+	Decision        string     `json:"decision"`
+	Amount          CartAmount `json:"amount"`
+	Conviction      int        `json:"conviction"`
+	Title           string     `json:"title"`
 }
 
 type UpdateCartItemRequest struct {
-	AyeBalance string `json:"ayeBalance,omitempty"`
-	NayBalance string `json:"nayBalance,omitempty"`
-	Abstain    string `json:"abstain,omitempty"`
-	LockPeriod int    `json:"lockPeriod,omitempty"`
+	ID         string     `json:"id"`
+	Decision   string     `json:"decision"`
+	Amount     CartAmount `json:"amount"`
+	Conviction int        `json:"conviction"`
 }
 
 // Delegation types
@@ -448,6 +456,7 @@ type Delegate struct {
 	Address          string    `json:"address"`
 	Name             string    `json:"name"`
 	Bio              string    `json:"bio"`
+	Manifesto        string    `json:"manifesto"`
 	DelegationsCount int       `json:"delegations_count"`
 	ActiveProposals  int       `json:"active_proposals"`
 	VotedProposals   int       `json:"voted_proposals"`
@@ -457,16 +466,12 @@ type Delegate struct {
 }
 
 type CreatePADelegateRequest struct {
-	Address string   `json:"address"`
-	Name    string   `json:"name"`
-	Bio     string   `json:"bio"`
-	Tags    []string `json:"tags,omitempty"`
+	Address   string `json:"address"`
+	Manifesto string `json:"manifesto"`
 }
 
 type UpdatePADelegateRequest struct {
-	Name string   `json:"name,omitempty"`
-	Bio  string   `json:"bio,omitempty"`
-	Tags []string `json:"tags,omitempty"`
+	Manifesto string `json:"manifesto"`
 }
 
 type TrackStats struct {

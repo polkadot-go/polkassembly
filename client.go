@@ -37,7 +37,7 @@ func NewClient(cfg Config) *Client {
 	}
 
 	if cfg.Timeout == 0 {
-		cfg.Timeout = 30 * time.Second
+		cfg.Timeout = 60 * time.Second
 	}
 
 	client := resty.New().
