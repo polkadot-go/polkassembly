@@ -1,9 +1,11 @@
-module github.com/polkassembly/go-client
+module github.com/polkadot-go/polkassembly
 
-go 1.23.0
+go 1.21
 
-toolchain go1.24.2
+require (
+	github.com/go-resty/resty/v2 v2.11.0
+)
 
-require github.com/go-resty/resty/v2 v2.16.5
-
-require golang.org/x/net v0.42.0 // indirect
+require (
+	golang.org/x/net v0.17.0 // indirect
+)

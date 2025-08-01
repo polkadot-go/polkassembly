@@ -8,17 +8,20 @@ func (c *Client) GetPosts(params PostListingParams) (*PostListingResponse, error
 	if params.Page > 0 {
 		queryParams["page"] = fmt.Sprintf("%d", params.Page)
 	}
-	if params.Limit > 0 {
-		queryParams["listingLimit"] = fmt.Sprintf("%d", params.Limit)
+	if params.ListingLimit > 0 {
+		queryParams["listingLimit"] = fmt.Sprintf("%d", params.ListingLimit)
 	}
-	if params.Type != "" {
-		queryParams["trackNo"] = params.Type
+	if params.TrackNo > 0 {
+		queryParams["trackNo"] = fmt.Sprintf("%d", params.TrackNo)
 	}
-	if params.Status != "" {
-		queryParams["trackStatus"] = params.Status
+	if params.TrackStatus != "" {
+		queryParams["trackStatus"] = params.TrackStatus
 	}
-	if params.ProposerAddress != "" {
-		queryParams["proposalType"] = params.ProposerAddress
+	if params.ProposalType != "" {
+		queryParams["proposalType"] = params.ProposalType
+	}
+	if params.SortBy != "" {
+		queryParams["sortBy"] = params.SortBy
 	}
 
 	r, err := c.client.R().

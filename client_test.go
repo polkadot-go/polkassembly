@@ -23,8 +23,8 @@ func TestGetPosts(t *testing.T) {
 	client := getTestClient(t)
 
 	resp, err := client.GetPosts(PostListingParams{
-		Page:  1,
-		Limit: 10,
+		Page:         1,
+		ListingLimit: 10,
 	})
 
 	if err != nil {
@@ -52,8 +52,8 @@ func TestGetPost(t *testing.T) {
 		return
 	}
 
-	if resp.ID != postID {
-		t.Errorf("Expected post ID %d, got %d", postID, resp.ID)
+	if resp.PostID != postID {
+		t.Errorf("Expected post ID %d, got %d", postID, resp.PostID)
 	}
 }
 
@@ -177,7 +177,7 @@ func TestAuthenticatedEndpoints(t *testing.T) {
 		if err != nil {
 			t.Logf("IsSubscribed failed: %v", err)
 		} else if resp != nil {
-			t.Logf("Subscription status for post %d: %v", postID, resp.IsSubscribed)
+			t.Logf("Subscription status for post %d: %v", postID, resp.Subscribed)
 		}
 	})
 }

@@ -116,9 +116,6 @@ func (c *Client) GetUsers(params UserListingParams) (*UserListingResponse, error
 	if params.Limit > 0 {
 		queryParams["limit"] = fmt.Sprintf("%d", params.Limit)
 	}
-	if params.Sort != "" {
-		queryParams["sort"] = params.Sort
-	}
 
 	r, err := c.client.R().
 		SetQueryParams(queryParams).

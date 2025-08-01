@@ -14,8 +14,8 @@ func (c *Client) GetVotes(params VoteListingParams) (*VoteListingResponse, error
 	if params.Limit > 0 {
 		queryParams["limit"] = fmt.Sprintf("%d", params.Limit)
 	}
-	if params.Decision != "" {
-		queryParams["voteType"] = params.Decision
+	if params.VoteType != "" {
+		queryParams["voteType"] = params.VoteType
 	}
 
 	r, err := c.client.R().

@@ -1,9 +1,10 @@
 package polkassembly
 
-import "fmt"
-
 func (c *Client) Web3Auth(req Web3AuthRequest) (*Web3AuthResponse, error) {
 	var resp Web3AuthResponse
+	if req.Network == "" {
+		req.Network = c.network
+	}
 	r, err := c.client.R().
 		SetBody(req).
 		Post("/auth/actions/addressLogin")
@@ -50,7 +51,7 @@ func (c *Client) Web2Signup(req Web2SignupRequest) (*Web2SignupResponse, error) 
 func (c *Client) SendResetPasswordEmail(req ResetPasswordRequest) error {
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/auth/actions/resetPassword")
+		Post("/auth/actions/sendResetPasswordEmail")
 	if err != nil {
 		return err
 	}
@@ -60,7 +61,7 @@ func (c *Client) SendResetPasswordEmail(req ResetPasswordRequest) error {
 func (c *Client) GenerateQRSession() (*QRSessionResponse, error) {
 	var resp QRSessionResponse
 	r, err := c.client.R().
-		Post("/auth/actions/generateQRSession")
+		Post("/auth/actions/qrGenerateSession")
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (c *Client) ClaimQRSession(req ClaimQRSessionRequest) (*Web3AuthResponse, e
 	var resp Web3AuthResponse
 	r, err := c.client.R().
 		SetBody(req).
-		Post("/auth/actions/claimQRSession")
+		Post("/auth/actions/qrClaimSession")
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +86,11 @@ func (c *Client) ClaimQRSession(req ClaimQRSessionRequest) (*Web3AuthResponse, e
 	return &resp, nil
 }
 
-func (c *Client) EditUserDetails(userID int, req EditUserDetailsRequest) (*User, error) {
+func (c *Client) EditUserDetails(req EditUserDetailsRequest) (*User, error) {
 	var resp User
 	r, err := c.client.R().
 		SetBody(req).
-		Post(fmt.Sprintf("/auth/actions/editProfile/%d", userID))
+		Post("/auth/actions/setUserDetails")
 	if err != nil {
 		return nil, err
 	}
