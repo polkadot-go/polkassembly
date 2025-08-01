@@ -116,31 +116,25 @@ func (c *Client) DeleteComment(proposalType string, postID int, commentID string
 }
 
 func (c *Client) DeleteReaction(proposalType string, postID int, reactionID string) error {
-	// If reactionID starts with "temp_", it means we need to use the reaction itself
-	if len(reactionID) > 5 && reactionID[:5] == "temp_" {
-		// Extract reaction from temp ID
+	// API might not support DELETE with ID, try removing reaction by type
+	endpoint := fmt.Sprintf("/%s/%d/reactions", proposalType, postID)
+
+	// Extract reaction type from ID if it's our temp format
+	var reaction string
+	if strings.HasPrefix(reactionID, "temp_") {
 		parts := strings.Split(reactionID, "_")
 		if len(parts) >= 3 {
-			reaction := parts[2]
-			endpoint := fmt.Sprintf("/%s/%d/reactions", proposalType, postID)
-
-			r, err := c.client.R().
-				SetBody(map[string]interface{}{
-					"reaction": reaction,
-				}).
-				Delete(endpoint)
-
-			if err != nil {
-				return err
-			}
-
-			return c.parseResponse(r, nil)
+			reaction = parts[2]
 		}
+	} else {
+		// Assume the ID is the reaction type itself
+		reaction = reactionID
 	}
 
-	endpoint := fmt.Sprintf("/%s/%d/reactions/%s", proposalType, postID, reactionID)
-
 	r, err := c.client.R().
+		SetBody(map[string]interface{}{
+			"reaction": reaction,
+		}).
 		Delete(endpoint)
 
 	if err != nil {
