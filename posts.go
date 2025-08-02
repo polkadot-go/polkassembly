@@ -245,7 +245,6 @@ func (c *Client) GetActivityFeed(page, limit int) ([]ActivityFeedItem, error) {
 	return resp.Items, nil
 }
 
-// IsSubscribed checks if user is subscribed to a post
 func (c *Client) IsSubscribed(proposalType string, postID int) (*SubscriptionStatus, error) {
 	if proposalType == "" {
 		proposalType = "ReferendumV2"
@@ -253,8 +252,15 @@ func (c *Client) IsSubscribed(proposalType string, postID int) (*SubscriptionSta
 
 	r, err := c.client.R().
 		Get(fmt.Sprintf("/%s/%d/subscription", proposalType, postID))
+
 	if err != nil {
 		return nil, err
+	}
+
+	c.logDebug("IsSubscribed response: %d - %s", r.StatusCode(), string(r.Body()))
+
+	if r.StatusCode() == 404 {
+		return &SubscriptionStatus{Subscribed: false}, nil
 	}
 
 	var resp SubscriptionStatus
