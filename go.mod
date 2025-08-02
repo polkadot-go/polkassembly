@@ -1,4 +1,4 @@
-module github.com/polkadot-go/polkassembly
+module github.com/polkadot-go/polkassembly-api
 
 go 1.23.0
 

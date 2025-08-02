@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/polkadot-go/polkassembly"
+	"github.com/polkadot-go/polkassembly-api"
 )
 
 func main() {
